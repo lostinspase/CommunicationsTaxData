@@ -11,9 +11,9 @@ STATE_DOR_URLS = {
     "AR": "https://www.dfa.arkansas.gov/office/taxes/excise-tax-administration/sales-use-tax/",
     "CA": "https://www.cdtfa.ca.gov/taxes-and-fees/sales-use-tax-rates.htm",
     "CO": "https://tax.colorado.gov/sales-tax",
-    "CT": "https://portal.ct.gov/drs/taxes/sales-and-use-tax",
+    "CT": "https://portal.ct.gov/drs/sales-tax/tax-information",
     "DE": "https://revenue.delaware.gov/business-tax-forms/gross-receipts-tax-forms/",
-    "DC": "https://otr.cfo.dc.gov/page/sales-and-use-tax",
+    "DC": "https://otr.cfo.dc.gov/page/sales-use-tax",
     "FL": "https://floridarevenue.com/taxes/taxesfees/Pages/sales_tax.aspx",
     "GA": "https://dor.georgia.gov/taxes/sales-use-tax",
     "HI": "https://tax.hawaii.gov/geninfo/get/",
@@ -61,10 +61,7 @@ STATE_DOR_URLS = {
     "WA": "https://dor.wa.gov/taxes-rates/retail-sales-tax",
     "WV": "https://tax.wv.gov/Business/SalesAndUseTax/Pages/SalesAndUseTax.aspx",
     "WI": "https://www.revenue.wi.gov/Pages/FAQS/pcs-taxrates.aspx",
-    "WY": (
-        "https://revenue.wyo.gov/divisions/excise-tax/excise-tax-publications/"
-        "excise-tax-rate-charts"
-    ),
+    "WY": "https://excise-tax-div.wyo.gov/salesuselodging-tax/tax-rates",
 }
 
 CORE_SOURCES = [

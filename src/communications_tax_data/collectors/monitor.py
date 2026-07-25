@@ -23,6 +23,13 @@ class SourceMonitor:
     name = "source-monitor"
 
     @staticmethod
+    def _raise_for_soft_error(response) -> None:
+        path = response.url.path.lower()
+        markers = ("/404error", "/404-error", "/page-not-found", "/not-found")
+        if any(marker in path for marker in markers):
+            raise ValueError(f"Source redirected to an error page: {response.url}")
+
+    @staticmethod
     def _due_sources(session: Session, *, now, force: bool) -> list[Source]:
         sources = list(
             session.scalars(
@@ -62,6 +69,7 @@ class SourceMonitor:
             try:
                 response = get_with_retry(client, source.url)
                 response.raise_for_status()
+                self._raise_for_soft_error(response)
                 return source, started, response, None
             except Exception as exc:
                 return source, started, None, exc
