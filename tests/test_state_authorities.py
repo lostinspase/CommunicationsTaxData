@@ -37,7 +37,7 @@ def test_catalog_seeds_both_authority_tracks(session):
         select(func.count())
         .select_from(Source)
         .where(Source.parser == "state-rules")
-    ) == 11
+    ) == 19
 
 
 def test_state_page_does_not_count_catalog_as_rule_coverage(session):

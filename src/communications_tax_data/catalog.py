@@ -159,6 +159,35 @@ CORE_SOURCES = [
         "notes": "Official full-member and associate-member status.",
     },
     {
+        "code": "ny-general-city-law-20-b",
+        "name": "New York General City Law § 20-b — city utility taxes",
+        "publisher": "New York State Senate",
+        "source_type": "legal_authority",
+        "url": "https://www.nysenate.gov/legislation/laws/GCT/20-B",
+        "tax_level": 3,
+        "state_code": "NY",
+        "cadence_days": 14,
+        "notes": (
+            "Enabling law only. A city is not credited with a tax unless its "
+            "adopted local ordinance is separately validated."
+        ),
+    },
+    {
+        "code": "ny-village-law-5-530",
+        "name": "New York Village Law § 5-530 — village utility taxes",
+        "publisher": "New York State Senate",
+        "source_type": "legal_authority",
+        "url": "https://www.nysenate.gov/legislation/laws/VIL/5-530",
+        "tax_level": 3,
+        "state_code": "NY",
+        "cadence_days": 14,
+        "notes": (
+            "Enabling law and village telephony-base limitation. A village is not "
+            "credited with a tax unless its adopted local ordinance is separately "
+            "validated."
+        ),
+    },
+    {
         "code": "census-tiger-2025",
         "name": "2025 TIGER/Line shapefiles",
         "publisher": "U.S. Census Bureau",
@@ -328,6 +357,285 @@ STATE_RULE_SOURCES = [
     },
 ]
 
+NY_LOCAL_UTILITY_RULES = [
+    {
+        "source": {
+            "code": "local-rule-ny-johnstown-utility-grt",
+            "name": "Johnstown utility gross receipts tax — Chapter 278, Article I",
+            "publisher": "City of Johnstown",
+            "source_type": "local_ordinance",
+            "url": "https://ecode360.com/15331557",
+            "tax_level": 3,
+            "state_code": "NY",
+            "parser": "state-rules",
+            "cadence_days": 14,
+            "notes": (
+                "Codified one-percent utility tax, telecommunications base, "
+                "filing recipient, and due dates."
+            ),
+        },
+        "locality": "Johnstown",
+        "municipality_type": "city",
+        "p_code": 2560500,
+        "effective_from": "1937-07-01",
+        "local_citation": "Johnstown City Code Chapter 278, Article I",
+        "filing_entity_name": "City of Johnstown — City Treasurer",
+        "payment_recipient": "City Treasurer, City of Johnstown",
+        "filing_frequency": "quarterly_or_small_utility_annual",
+        "due_rule": (
+            "Quarterly returns and payment are due September 25, December 25, "
+            "March 25, and June 25. A qualifying small utility may file annually "
+            "on June 25."
+        ),
+        "reporting_basis": (
+            "Report gross income or gross operating income on the form furnished "
+            "by the City Treasurer. No public downloadable return was found."
+        ),
+        "customer_bill_treatment": "may_itemize",
+    },
+    {
+        "source": {
+            "code": "local-rule-ny-amsterdam-utility-grt",
+            "name": "Amsterdam utility services tax — Chapter 214, Article I",
+            "publisher": "City of Amsterdam",
+            "source_type": "local_ordinance",
+            "url": "https://ecode360.com/8070007",
+            "tax_level": 3,
+            "state_code": "NY",
+            "parser": "state-rules",
+            "cadence_days": 14,
+            "notes": (
+                "Codified one-percent utility tax, telecommunications base, "
+                "filing recipient, and due dates."
+            ),
+        },
+        "locality": "Amsterdam",
+        "municipality_type": "city",
+        "p_code": 2589700,
+        "effective_from": "1937-07-01",
+        "local_citation": "Amsterdam City Code Chapter 214, Article I",
+        "filing_entity_name": "City of Amsterdam — City Treasurer",
+        "payment_recipient": "City Treasurer, City of Amsterdam",
+        "filing_frequency": "quarterly_or_small_utility_annual",
+        "due_rule": (
+            "Quarterly returns and payment are due September 25, December 25, "
+            "March 25, and June 25. A qualifying small utility may file annually "
+            "on June 25."
+        ),
+        "reporting_basis": (
+            "Report gross income or gross operating income on the form furnished "
+            "by the City Treasurer. No public downloadable return was found."
+        ),
+        "customer_bill_treatment": "must_not_itemize",
+    },
+    {
+        "source": {
+            "code": "local-rule-ny-fort-plain-utility-grt",
+            "name": "Fort Plain utility tax — Chapter 165, Article I",
+            "publisher": "Village of Fort Plain",
+            "source_type": "local_ordinance",
+            "url": "https://ecode360.com/12375089",
+            "tax_level": 3,
+            "state_code": "NY",
+            "parser": "state-rules",
+            "cadence_days": 14,
+            "notes": (
+                "Codified one-percent utility tax, local-exchange base, "
+                "filing recipient, and due dates."
+            ),
+        },
+        "locality": "Fort Plain",
+        "municipality_type": "village",
+        "p_code": 2589900,
+        "effective_from": "1973-03-01",
+        "local_citation": "Fort Plain Village Code Chapter 165, Article I",
+        "filing_entity_name": "Village of Fort Plain — Village Treasurer",
+        "payment_recipient": "Village Treasurer, Village of Fort Plain",
+        "filing_frequency": "annual_or_elected_quarterly",
+        "due_rule": (
+            "The annual return and payment are due March 25. A utility may elect "
+            "quarterly returns due September 25, December 25, March 25, and June 25."
+        ),
+        "reporting_basis": (
+            "Report local-exchange-service receipts wholly consummated within the "
+            "Village on the form furnished by the Village Treasurer. No public "
+            "downloadable return was found."
+        ),
+        "customer_bill_treatment": "must_not_itemize",
+    },
+    {
+        "source": {
+            "code": "local-rule-ny-saratoga-springs-utility-grt",
+            "name": "Saratoga Springs utility tax — Chapter 212, Article I",
+            "publisher": "City of Saratoga Springs",
+            "source_type": "local_ordinance",
+            "url": "https://ecode360.com/6520973",
+            "tax_level": 3,
+            "state_code": "NY",
+            "parser": "state-rules",
+            "cadence_days": 14,
+            "notes": (
+                "Codified one-percent utility tax, telecommunications base, "
+                "filing recipient, and due rule."
+            ),
+        },
+        "locality": "Saratoga Springs",
+        "municipality_type": "city",
+        "p_code": 2651300,
+        "effective_from": "1937-07-01",
+        "local_citation": "Saratoga Springs City Code Chapter 212, Article I",
+        "filing_entity_name": "City of Saratoga Springs — Commissioner of Finance",
+        "payment_recipient": "Commissioner of Finance, City of Saratoga Springs",
+        "filing_frequency": "monthly",
+        "due_rule": (
+            "The codified rule requires a monthly return and payment on the "
+            "twenty-fifth day following the reporting month."
+        ),
+        "reporting_basis": (
+            "Report gross income or gross operating income on the form furnished "
+            "by the Commissioner of Finance. No public downloadable return was found."
+        ),
+        "customer_bill_treatment": "must_not_itemize",
+    },
+    {
+        "source": {
+            "code": "local-rule-ny-albany-utility-grt",
+            "name": "Albany utility gross receipts tax — Chapter 333, Article IX",
+            "publisher": "City of Albany",
+            "source_type": "local_ordinance",
+            "url": "https://ecode360.com/7684955",
+            "tax_level": 3,
+            "state_code": "NY",
+            "parser": "state-rules",
+            "cadence_days": 14,
+            "notes": (
+                "Codified one-percent utility tax, telecommunications base, "
+                "filing recipient, and due dates."
+            ),
+        },
+        "locality": "Albany",
+        "municipality_type": "city",
+        "p_code": 2502700,
+        "effective_from": "1937-07-01",
+        "local_citation": "Albany City Code Chapter 333, Article IX",
+        "filing_entity_name": "City of Albany — City Comptroller",
+        "payment_recipient": "City Comptroller, City of Albany",
+        "filing_frequency": "quarterly_or_small_utility_annual",
+        "due_rule": (
+            "Quarterly returns and payment are due September 25, December 25, "
+            "March 25, and June 25. A qualifying small utility may file annually "
+            "on June 25."
+        ),
+        "reporting_basis": (
+            "Report gross income or gross operating income on the form furnished "
+            "by the City Comptroller. No public downloadable return was found."
+        ),
+        "customer_bill_treatment": "must_not_itemize",
+    },
+    {
+        "source": {
+            "code": "local-rule-ny-lake-george-utility-grt",
+            "name": "Lake George utility tax — Chapter 195, Article I",
+            "publisher": "Village of Lake George",
+            "source_type": "local_ordinance",
+            "url": "https://ecode360.com/9945181",
+            "tax_level": 3,
+            "state_code": "NY",
+            "parser": "state-rules",
+            "cadence_days": 14,
+            "notes": (
+                "Codified one-percent utility tax, local-exchange base, "
+                "filing recipient, and due dates."
+            ),
+        },
+        "locality": "Lake George",
+        "municipality_type": "village",
+        "p_code": 2699100,
+        "effective_from": "1968-04-01",
+        "local_citation": "Lake George Village Code Chapter 195, Article I",
+        "filing_entity_name": "Village of Lake George — Village Treasurer",
+        "payment_recipient": "Village Treasurer, Village of Lake George",
+        "filing_frequency": "semiannual_or_small_utility_annual",
+        "due_rule": (
+            "Semiannual returns and payment are due July 1 and January 1. A "
+            "qualifying small utility may file annually on October 1."
+        ),
+        "reporting_basis": (
+            "Report local-exchange-service receipts wholly consummated within the "
+            "Village on the form furnished by the Village Treasurer. No public "
+            "downloadable return was found."
+        ),
+        "customer_bill_treatment": "must_not_itemize",
+    },
+    {
+        "source": {
+            "code": "local-rule-ny-scotia-utility-grt",
+            "name": "Scotia public utilities tax — Chapter 228, Article I",
+            "publisher": "Village of Scotia",
+            "source_type": "local_ordinance",
+            "url": "https://ecode360.com/9176130",
+            "tax_level": 3,
+            "state_code": "NY",
+            "parser": "state-rules",
+            "cadence_days": 14,
+            "notes": (
+                "Codified one-percent utility tax, local-exchange base, "
+                "filing recipient, and due dates."
+            ),
+        },
+        "locality": "Scotia",
+        "municipality_type": "village",
+        "p_code": 2654500,
+        "effective_from": "1951-01-01",
+        "local_citation": "Scotia Village Code Chapter 228, Article I",
+        "filing_entity_name": "Village of Scotia — Clerk-Treasurer",
+        "payment_recipient": "Clerk-Treasurer, Village of Scotia",
+        "filing_frequency": "annual_or_elected_quarterly",
+        "due_rule": (
+            "The annual return and payment are due March 1. A utility may elect "
+            "quarterly returns due September 25, December 25, March 25, and June 25."
+        ),
+        "reporting_basis": (
+            "Report local-exchange-service receipts wholly consummated within the "
+            "Village on the form furnished by the Clerk-Treasurer. No public "
+            "downloadable return was found."
+        ),
+        "customer_bill_treatment": "must_not_itemize",
+    },
+    {
+        "source": {
+            "code": "local-rule-ny-clayton-utility-grt",
+            "name": "Clayton utilities tax — Chapter 114, Article I",
+            "publisher": "Village of Clayton",
+            "source_type": "local_ordinance",
+            "url": "https://ecode360.com/11989385",
+            "tax_level": 3,
+            "state_code": "NY",
+            "parser": "state-rules",
+            "cadence_days": 14,
+            "notes": (
+                "Codified one-percent utility tax, local-exchange base, "
+                "filing recipient, and due date."
+            ),
+        },
+        "locality": "Clayton",
+        "municipality_type": "village",
+        "p_code": 2573000,
+        "effective_from": "1970-06-01",
+        "local_citation": "Clayton Village Code Chapter 114, Article I",
+        "filing_entity_name": "Village of Clayton — Village Treasurer",
+        "payment_recipient": "Village Treasurer, Village of Clayton",
+        "filing_frequency": "annual",
+        "due_rule": "The annual return and payment are due July 25.",
+        "reporting_basis": (
+            "Report local-exchange-service receipts wholly consummated within the "
+            "Village on the form furnished by the Village Treasurer. No public "
+            "downloadable return was found."
+        ),
+        "customer_bill_treatment": "must_not_itemize",
+    },
+]
+
 
 def seed_catalog(session: Session) -> tuple[int, int]:
     inserted = 0
@@ -338,6 +646,10 @@ def seed_catalog(session: Session) -> tuple[int, int]:
         updated += int(not created)
     for item in STATE_RULE_SOURCES:
         _, created = get_or_create_source(session, **item)
+        inserted += int(created)
+        updated += int(not created)
+    for rule in NY_LOCAL_UTILITY_RULES:
+        _, created = get_or_create_source(session, **rule["source"])
         inserted += int(created)
         updated += int(not created)
     for profile in STATE_AUTHORITIES:

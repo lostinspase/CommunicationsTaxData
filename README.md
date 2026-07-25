@@ -19,6 +19,7 @@ The first release intentionally reports what public data cannot reproduce.
 | Census ZCTA relationships | Nationwide ZCTA-to-county and ZCTA-to-place intersections | `census` | Statistical geography, not USPS ZIP+4 or rooftop assignment |
 | State authority register | 50 PUC/PSC and 50 revenue authority sites | `monitor` | Site health is not counted as rule coverage |
 | CA/NY/PA state rules | CPUC/CDTFA, NY DTF sales/wireless/excise, PA DOR | `state` | Source-verified vertical slices; none is yet calculation-ready |
+| NY municipal utility GRT | Eight demand-ranked adopted city/village ordinances | `state` | Rate/base and recipient verified; local return forms remain open |
 | Avalara benchmark | Supplied address/rate tables from read-only replica | `benchmark-sync` | Used only for completeness comparisons |
 | Invoice demand | Tax actually billed by customer, p_code, type, and level | `benchmark-sync` | Ranks acquisition; never exposes customer data on the work-queue API |
 
@@ -146,6 +147,8 @@ Apeiron application tables.
 - `ctd_tax_fact_change`: field-level history for changes to normalized public facts.
 - `ctd_filing_entity`, `ctd_filing_document`, and `ctd_tax_filing_map`: reporting entity,
   payment recipient, return/portal, exemption document, cadence, due rule, and citation.
+  A `recipient_verified` local mapping identifies the legally named payee and due rule
+  but deliberately does not count as filing-complete without a public return or portal.
 - `ctd_location_profile` and `ctd_location_profile_member`: CTD-owned, effective-dated
   jurisdiction-set identifiers. Current Census-derived profiles are explicitly
   `calculation_ready=false`.

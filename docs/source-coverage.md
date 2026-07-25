@@ -16,6 +16,7 @@
 | New York sales/use | DTF Publication 718 and telecommunications quick reference | Daily; source cadence 7–14 days | State rate, 76 reporting-jurisdiction local components/codes, and intrastate telecom taxability |
 | New York wireless | DTF Publications 451 and 452 | Daily; source cadence 7 days | Effective-dated state and county/NYC postpaid and prepaid surcharge components |
 | New York provider tax | DTF Tax Expenditure Report and current CT-186-E materials | Daily; source cadence 30 days | § 186-e nonmobile/mobile rates, bases, recipient, and return |
+| New York municipal utility tax | Eight current city/village code articles | Daily; source cadence 14 days | One-percent local utility GRT, telecom base boundary, local recipient, and due rule |
 | Invoice demand | Apeiron invoice tax linked to benchmark rate IDs | Daily | Trailing-365-day and lifetime dollars/rows by customer, p_code, type, and level |
 
 ## Monitored discovery sources
@@ -50,8 +51,14 @@ availability/content change and gives parsed rule sources a shorter cadence.
   should identify customer location. CTD therefore stores its state/local component and
   reporting-code evidence separately from any commercial p_code. Publications 451/452
   likewise separate the state amount from county/New York City wireless surcharges.
-  Local municipal telecommunications gross-receipts taxes remain a demand-ranked local
-  ordinance gap; they are not inferred from the state § 186-e provider tax.
+  Local municipal telecommunications gross-receipts taxes are not inferred from the
+  state § 186-e provider tax or a statewide enabling law. The first demand-ranked
+  tranche validates adopted one-percent ordinances for Johnstown, Amsterdam, Fort
+  Plain, Saratoga Springs, Albany, Lake George, Scotia, and Clayton. City ordinances
+  include traditional telephony/telephone service within their local utility base.
+  Village Law § 5-530 and the village ordinances limit telephony receipts to local
+  exchange service wholly consummated within the village. Neither formulation is
+  treated as automatic authority for every VoIP, wireless, or bundle variant.
 - The other 47 states are cataloged and monitored but remain `not_pulled` until a
   state-specific parser validates rates, bases, effective dates, taxability, sourcing,
   exemptions, and filing routes. A generic sales-tax rate or healthy homepage is not
@@ -69,6 +76,15 @@ availability/content change and gives parsed rule sources a shorter cadence.
 5. Normalize product/service taxability, exemptions, caps, bases, and tax-on-tax rules.
 6. License or procure ZIP+4/address boundary data and add 911/rate-center overlays.
 7. Expand local ordinance collectors in order of billed revenue and benchmark gap count.
+
+## New York local filing status
+
+The eight adopted ordinances identify the City Treasurer, Village Treasurer,
+Clerk-Treasurer, Commissioner of Finance, or City Comptroller as the recipient and state
+the applicable cadence and due date. They also direct the recipient to furnish or
+prescribe the return. CTD records those routes as `recipient_verified`, with no return
+document ID, because no public downloadable local return or filing portal was found.
+This closes the legal-rate gap without closing the filing-form exception.
 
 ## Geographic warning
 

@@ -175,13 +175,22 @@ class StateRuleCollector:
 
     def collect(self, session: Session) -> CollectionStats:
         # Runtime import avoids a catalog/collector package initialization cycle.
-        from communications_tax_data.catalog import STATE_RULE_SOURCES
+        from communications_tax_data.catalog import (
+            NY_LOCAL_UTILITY_RULES,
+            STATE_RULE_SOURCES,
+        )
 
         run = start_run(session, self.name)
         stats = CollectionStats()
         jurisdictions: dict[str, Jurisdiction] = {}
+        local_configs = {
+            item["source"]["code"]: item for item in NY_LOCAL_UTILITY_RULES
+        }
+        sources = STATE_RULE_SOURCES + [
+            item["source"] for item in NY_LOCAL_UTILITY_RULES
+        ]
         with http_client() as client:
-            for item in STATE_RULE_SOURCES:
+            for item in sources:
                 source, created = get_or_create_source(session, **item)
                 stats.inserted += int(created)
                 state_code = item["state_code"]
@@ -206,6 +215,7 @@ class StateRuleCollector:
                         source=source,
                         jurisdiction=jurisdiction,
                         content=response.content,
+                        local_config=local_configs.get(source.code),
                     )
                     stats.sources += 1
                     stats.seen += facts
@@ -257,7 +267,16 @@ class StateRuleCollector:
         source,
         jurisdiction: Jurisdiction,
         content: bytes,
+        local_config: dict[str, Any] | None = None,
     ) -> tuple[int, int]:
+        if local_config is not None:
+            return self._ny_local_utility_grt(
+                session,
+                run,
+                source,
+                content,
+                config=local_config,
+            )
         if source.code == "state-rule-ca-cpuc-surcharge":
             return self._ca_surcharge(session, run, source, jurisdiction, content)
         if source.code == "state-rule-ca-cpuc-user-fee":
@@ -303,6 +322,118 @@ class StateRuleCollector:
                 session, run, source, jurisdiction, content
             )
         raise ValueError(f"No state-rule parser for {source.code}")
+
+    def _ny_local_utility_grt(
+        self,
+        session: Session,
+        run,
+        source,
+        content: bytes,
+        *,
+        config: dict[str, Any],
+    ) -> tuple[int, int]:
+        text = re.sub(
+            r"\s+",
+            " ",
+            BeautifulSoup(content, "html.parser").get_text(" ", strip=True),
+        )
+        rate_match = re.search(
+            r"\btax\s+equal\s+to\s+(\d+(?:\.\d+)?)\s*%",
+            text,
+            re.IGNORECASE,
+        )
+        required = (
+            config["locality"].casefold() in text.casefold(),
+            "gross income" in text.casefold(),
+            bool(
+                re.search(
+                    r"\btelephon(?:e|y|ic|ical)\b",
+                    text,
+                    re.IGNORECASE,
+                )
+            ),
+            "territorial limits" in text.casefold()
+            or "wholly consummated within" in text.casefold(),
+        )
+        if rate_match is None or not all(required):
+            raise ValueError(
+                f"{config['locality']} utility-tax ordinance validation changed"
+            )
+        rate = Decimal(rate_match.group(1)) / 100
+        if rate != Decimal("0.01"):
+            raise ValueError(
+                f"{config['locality']} utility-tax rate is no longer one percent"
+            )
+
+        is_village = config["municipality_type"] == "village"
+        jurisdiction = self._ny_local_jurisdiction(
+            session,
+            source=source,
+            name=config["locality"],
+            tax_level=3,
+            namespace="utility-gross-receipts",
+            metadata={
+                "assignment": "adopted_municipal_ordinance",
+                "municipality_type": config["municipality_type"],
+                "benchmark_p_code": config["p_code"],
+                "customer_bill_treatment": config["customer_bill_treatment"],
+            },
+        )
+        enabling_citation = (
+            "New York Village Law § 5-530"
+            if is_village
+            else "New York General City Law § 20-b"
+        )
+        base_rule = (
+            "One-percent tax on qualifying utility gross income or gross operating "
+            f"income within {config['locality']}. "
+        )
+        if is_village:
+            base_rule += (
+                "For telephony or telephone service, gross income includes only "
+                "receipts from local exchange service wholly consummated within "
+                "the village. "
+            )
+        else:
+            base_rule += (
+                "The codified utility definition includes telephony or telephone "
+                "service, and excludes transactions originating or consummated "
+                "outside the city. "
+            )
+        base_rule += (
+            "The ordinance text does not by itself establish treatment for every "
+            "modern VoIP, wireless, or bundled-service variant."
+        )
+        created = _upsert_fact(
+            session,
+            run=run,
+            jurisdiction=jurisdiction,
+            source=source,
+            natural_key=(
+                f"ny:local:{_slug(config['locality'])}:utility-gross-receipts"
+            ),
+            tax_name=f"{config['locality']} utility gross receipts tax",
+            tax_family="gross_receipts",
+            service_category="local_telecommunications_utility_gross_receipts",
+            rate=rate,
+            unit="percent_of_base",
+            effective_from=date.fromisoformat(config["effective_from"]),
+            effective_to=None,
+            citation=f"{config['local_citation']}; {enabling_citation}",
+            locator=source.url,
+            base_rule=base_rule,
+            raw_payload={
+                "validated_rate": f"{rate * 100}%",
+                "locality": config["locality"],
+                "municipality_type": config["municipality_type"],
+                "benchmark_p_code": config["p_code"],
+                "filing_entity_name": config["filing_entity_name"],
+                "filing_frequency": config["filing_frequency"],
+                "due_rule": config["due_rule"],
+                "customer_bill_treatment": config["customer_bill_treatment"],
+            },
+        )
+        return 1, int(created)
 
     @staticmethod
     def _ny_local_jurisdiction(

@@ -400,6 +400,8 @@ def seed_federal_filing_map(session: Session) -> dict[str, int]:
 
 def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
     """Seed source-verified CA/NY/PA benchmark links and state filing recipients."""
+    from communications_tax_data.catalog import NY_LOCAL_UTILITY_RULES
+
     counts = {
         "entities_inserted": 0,
         "documents_inserted": 0,
@@ -615,6 +617,32 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
                     "Publication 718 reporting jurisdiction and code are authoritative."
                 ),
             )
+
+    for config in NY_LOCAL_UTILITY_RULES:
+        fact_key = (
+            f"ny:local:{_slug(config['locality'])}:utility-gross-receipts"
+        )
+        enabling_citation = (
+            "New York Village Law § 5-530"
+            if config["municipality_type"] == "village"
+            else "New York General City Law § 20-b"
+        )
+        map_fact(
+            state="NY",
+            tax_type=14,
+            tax_level=3,
+            fact_key=fact_key,
+            citation=f"{config['local_citation']}; {enabling_citation}",
+            service_category="local_telecommunications_utility_gross_receipts",
+            p_code=config["p_code"],
+            method="benchmark_pcode_to_adopted_local_ordinance",
+            notes=(
+                "The p_code identifies the benchmark location only. The adopted "
+                "municipal ordinance is the rate and tax-base authority; modern "
+                "VoIP, wireless, and bundle classifications still require specific "
+                "product analysis."
+            ),
+        )
 
     entity_common = {
         "entity_type": "tax_authority",
@@ -843,4 +871,59 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
             basis="Taxable telecommunications receipts sourced to Pennsylvania.",
             citation="72 P.S. § 7202; 61 Pa. Code § 60.20",
         )
+
+    for config in NY_LOCAL_UTILITY_RULES:
+        locality_slug = _slug(config["locality"])
+        jurisdiction_external_key = (
+            f"ny:utility-gross-receipts:3:{locality_slug}"
+        )
+        enabling_citation = (
+            "New York Village Law § 5-530"
+            if config["municipality_type"] == "village"
+            else "New York General City Law § 20-b"
+        )
+        entity, created = _entity(
+            session,
+            f"ny-local-{locality_slug}-utility-tax",
+            name=config["filing_entity_name"],
+            payee_name=config["payment_recipient"],
+            entity_type="municipal_tax_authority",
+            tax_level=3,
+            state_code="NY",
+            jurisdiction_external_key=jurisdiction_external_key,
+            website_url=config["source"]["url"],
+            filing_portal_url=None,
+            payment_url=None,
+            registration_url=None,
+            mailing_address=None,
+            legal_citation=f"{config['local_citation']}; {enabling_citation}",
+            status="recipient_verified",
+            effective_from=date.fromisoformat(config["effective_from"]),
+        )
+        counts["entities_inserted"] += int(created)
+        _, created = _filing_map(
+            session,
+            natural_key=(
+                f"ny:avalara:14:3:{config['p_code']}:"
+                f"{locality_slug}:utility-grt:filing"
+            ),
+            effective_from=date.fromisoformat(config["effective_from"]),
+            benchmark_tax_type=14,
+            tax_level=3,
+            ctd_tax_concept="new_york_municipal_utility_gross_receipts_tax",
+            state_code="NY",
+            p_code=config["p_code"],
+            jurisdiction_external_key=jurisdiction_external_key,
+            filing_entity_id=entity.id,
+            payment_entity_id=entity.id,
+            return_document_id=None,
+            exemption_document_id=None,
+            filing_frequency=config["filing_frequency"],
+            due_rule=config["due_rule"],
+            reporting_basis=config["reporting_basis"],
+            payment_recipient=config["payment_recipient"],
+            legal_citation=f"{config['local_citation']}; {enabling_citation}",
+            mapping_status="recipient_verified",
+        )
+        counts["filing_maps_inserted"] += int(created)
     return counts

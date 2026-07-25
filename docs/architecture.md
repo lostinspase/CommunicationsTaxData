@@ -49,8 +49,10 @@ dimensions. The dashboard does not collapse them into one blended percentage.
 `ctd_tax_filing_map` links an effective-dated CTD concept and optional benchmark
 tax-type/location key to the report recipient, payment recipient, return or portal,
 exemption document, cadence, due rule, reporting basis, and legal citation. Federal seed
-records are public-source verified. State/local mappings remain exceptions until their
-exact tax-type and jurisdiction association is reviewed.
+records are public-source verified. A local `recipient_verified` record means an adopted
+ordinance names the recipient and due rule, but a public return/portal has not been
+found; it remains a filing exception. State/local mappings otherwise remain exceptions
+until their exact tax-type and jurisdiction association is reviewed.
 
 `ctd_tax_fact_benchmark_map` is the state-aware legal bridge between a public fact and a
 commercial type/level route. It includes optional p_code scope so a New York citation
