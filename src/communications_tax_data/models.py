@@ -277,6 +277,56 @@ class CustomerTaxNeed(Base):
     synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class CustomerTaxNeedDetail(Base):
+    """Billed-tax demand by customer, p_code, benchmark tax type, and level."""
+
+    __tablename__ = "ctd_customer_tax_need_detail"
+    __table_args__ = (
+        Index(
+            "ix_ctd_customer_need_detail_priority",
+            "active_customer",
+            "tax_level",
+            "trailing_12m_tax_amount",
+        ),
+        Index(
+            "ix_ctd_customer_need_detail_location",
+            "p_code",
+            "tax_type",
+            "tax_level",
+        ),
+        Index(
+            "ix_ctd_customer_need_detail_state",
+            "state_code",
+            "tax_level",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True
+    )
+    detail_key: Mapped[str] = mapped_column(String(64), unique=True)
+    customer_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    customer_number: Mapped[int] = mapped_column(Integer, index=True)
+    p_code: Mapped[int] = mapped_column(BigInteger, index=True)
+    postal_code: Mapped[str | None] = mapped_column(String(10), index=True)
+    plus_four: Mapped[str | None] = mapped_column(String(4))
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    country_code: Mapped[str | None] = mapped_column(String(3))
+    tax_type: Mapped[int] = mapped_column(Integer, index=True)
+    tax_level: Mapped[int] = mapped_column(Integer, index=True)
+    tax_category: Mapped[str | None] = mapped_column(String(100))
+    tax_description: Mapped[str | None] = mapped_column(String(160))
+    active_customer: Mapped[bool] = mapped_column(Boolean, index=True)
+    first_tax_invoice: Mapped[datetime | None] = mapped_column(DateTime)
+    last_tax_invoice: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    tax_charge_rows: Mapped[int] = mapped_column(BigInteger)
+    lifetime_tax_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    trailing_window_start: Mapped[date] = mapped_column(Date)
+    trailing_12m_charge_rows: Mapped[int] = mapped_column(BigInteger)
+    trailing_12m_tax_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), index=True)
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class TaxTypeCrosswalk(Base):
     """Auditable mapping from benchmark type/level semantics to CTD concepts."""
 
@@ -299,6 +349,44 @@ class TaxTypeCrosswalk(Base):
     confidence: Mapped[str] = mapped_column(String(20), default="candidate")
     legal_citation: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[str | None] = mapped_column(String(120))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class TaxFactBenchmarkMap(Base):
+    """State-aware link from one benchmark type/level to a public legal fact."""
+
+    __tablename__ = "ctd_tax_fact_benchmark_map"
+    __table_args__ = (
+        UniqueConstraint("natural_key", "effective_from", name="uq_ctd_fact_benchmark_map"),
+        Index(
+            "ix_ctd_fact_benchmark_map_lookup",
+            "benchmark_tax_type",
+            "benchmark_tax_level",
+            "state_code",
+            "p_code",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True
+    )
+    natural_key: Mapped[str] = mapped_column(String(255), index=True)
+    public_fact_natural_key: Mapped[str] = mapped_column(String(255), index=True)
+    benchmark_tax_type: Mapped[int] = mapped_column(Integer, index=True)
+    benchmark_tax_level: Mapped[int] = mapped_column(Integer, index=True)
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    p_code: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    service_category: Mapped[str | None] = mapped_column(String(100))
+    mapping_status: Mapped[str] = mapped_column(String(20), default="proposed")
+    mapping_method: Mapped[str] = mapped_column(String(60))
+    confidence: Mapped[str] = mapped_column(String(20), default="candidate")
+    legal_citation: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    effective_from: Mapped[date] = mapped_column(Date, default=date(1900, 1, 1))
+    effective_to: Mapped[date | None] = mapped_column(Date)
     reviewed_by: Mapped[str | None] = mapped_column(String(120))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

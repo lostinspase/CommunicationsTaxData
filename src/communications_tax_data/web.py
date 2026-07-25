@@ -10,6 +10,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from communications_tax_data import __version__
+from communications_tax_data.acquisition import acquisition_queue_data
 from communications_tax_data.db import get_engine
 from communications_tax_data.models import (
     BenchmarkJurisdiction,
@@ -388,6 +389,22 @@ def state_authorities_page(
         name="states.html",
         context=state_authority_data(session),
     )
+
+
+@app.get("/work-queue", response_class=HTMLResponse)
+def acquisition_queue_page(
+    request: Request, session: Session = Depends(get_session)
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="work_queue.html",
+        context=acquisition_queue_data(session),
+    )
+
+
+@app.get("/api/acquisition-queue")
+def acquisition_queue(session: Session = Depends(get_session)):
+    return acquisition_queue_data(session)
 
 
 @app.get("/api/state-authorities")

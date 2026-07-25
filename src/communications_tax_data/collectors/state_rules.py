@@ -30,6 +30,15 @@ from communications_tax_data.state_authorities import STATE_AUTHORITY_BY_CODE
 PA_TELECOM_CODE_URL = (
     "https://www.pacodeandbulletin.gov/secure/pacode/data/061/chapter60/s60.20.html"
 )
+NY_FRACTIONS = {
+    "¼": Decimal("0.25"),
+    "½": Decimal("0.5"),
+    "¾": Decimal("0.75"),
+    "⅛": Decimal("0.125"),
+    "⅜": Decimal("0.375"),
+    "⅝": Decimal("0.625"),
+    "⅞": Decimal("0.875"),
+}
 
 
 def _date(value: str) -> date:
@@ -149,6 +158,16 @@ def _table_rows(soup: BeautifulSoup, table_index: int = 0) -> list[list[str]]:
     ]
 
 
+def _slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
+
+
+def _ny_percent(value: str) -> Decimal:
+    whole = Decimal(value[0])
+    fraction = NY_FRACTIONS.get(value[1:], Decimal())
+    return (whole + fraction) / 100
+
+
 class StateRuleCollector:
     """Normalize only state rules that have source-specific validation."""
 
@@ -255,7 +274,485 @@ class StateRuleCollector:
             return self._pa_telecom_taxability(
                 session, run, source, jurisdiction, content
             )
+        if source.code == "state-rule-ny-sales-rates":
+            return self._ny_sales_rates(session, run, source, jurisdiction, content)
+        if source.code == "state-rule-ny-telecom-taxability":
+            return self._ny_telecom_taxability(
+                session, run, source, jurisdiction, content
+            )
+        if source.code == "state-rule-ny-wireless-postpaid":
+            return self._ny_wireless_surcharge(
+                session,
+                run,
+                source,
+                jurisdiction,
+                content,
+                prepaid=False,
+            )
+        if source.code == "state-rule-ny-wireless-prepaid":
+            return self._ny_wireless_surcharge(
+                session,
+                run,
+                source,
+                jurisdiction,
+                content,
+                prepaid=True,
+            )
+        if source.code == "state-rule-ny-telecom-excise":
+            return self._ny_telecom_excise(
+                session, run, source, jurisdiction, content
+            )
         raise ValueError(f"No state-rule parser for {source.code}")
+
+    @staticmethod
+    def _ny_local_jurisdiction(
+        session: Session,
+        *,
+        source,
+        name: str,
+        tax_level: int,
+        namespace: str,
+        metadata: dict[str, Any],
+    ) -> Jurisdiction:
+        external_key = f"ny:{namespace}:{tax_level}:{_slug(name)}"
+        jurisdiction = session.scalar(
+            select(Jurisdiction).where(
+                Jurisdiction.external_key == external_key,
+                Jurisdiction.valid_from == date(1900, 1, 1),
+            )
+        )
+        if jurisdiction is None:
+            jurisdiction = Jurisdiction(
+                external_key=external_key,
+                country_iso="USA",
+                tax_level=tax_level,
+                name=name,
+                state_code="NY",
+                county_name=name if tax_level == 2 else None,
+                locality_name=name if tax_level == 3 else None,
+                parent_external_key="state:NY",
+                valid_from=date(1900, 1, 1),
+                source_id=source.id,
+                metadata_json=metadata,
+            )
+            session.add(jurisdiction)
+            session.flush()
+        else:
+            jurisdiction.source_id = source.id
+            jurisdiction.metadata_json = metadata
+        return jurisdiction
+
+    def _ny_sales_rates(
+        self, session, run, source, jurisdiction, content: bytes
+    ) -> tuple[int, int]:
+        text = " ".join(
+            page.extract_text() or "" for page in PdfReader(io.BytesIO(content)).pages
+        )
+        normalized = re.sub(r"\s+", " ", text)
+        effective_match = re.search(
+            r"Effective\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})",
+            normalized,
+        )
+        if not effective_match:
+            raise ValueError("New York Publication 718 effective date was not found")
+        effective_from = date(
+            int(effective_match.group(3)),
+            {
+                "January": 1,
+                "February": 2,
+                "March": 3,
+                "April": 4,
+                "May": 5,
+                "June": 6,
+                "July": 7,
+                "August": 8,
+                "September": 9,
+                "October": 10,
+                "November": 11,
+                "December": 12,
+            }[effective_match.group(1)],
+            int(effective_match.group(2)),
+        )
+        matches = list(
+            re.finditer(
+                r"([*A-Za-z][*A-Za-z .’()–-]{1,80}?)\s+"
+                r"(\d(?:[¼½¾⅛⅜⅝⅞])?)\s+(\d{4})",
+                normalized,
+            )
+        )
+        if len(matches) < 70:
+            raise ValueError("New York Publication 718 rate table format changed")
+
+        state_rate = Decimal("0.04")
+        inserted = int(
+            _upsert_fact(
+                session,
+                run=run,
+                jurisdiction=jurisdiction,
+                source=source,
+                natural_key="ny:dor:state-sales-use-rate",
+                tax_name="New York State sales and use tax",
+                tax_family="sales_and_use",
+                service_category="state_taxable_sales_and_services",
+                rate=state_rate,
+                effective_from=date(1971, 6, 1),
+                effective_to=None,
+                citation="New York Tax Law § 1105; Publication 718",
+                locator=source.url,
+                base_rule=(
+                    "State rate only. Publication 718 publishes combined state/local "
+                    "rates and reporting codes; local components are normalized "
+                    "separately."
+                ),
+                raw_payload={
+                    "published_rate": "4%",
+                    "publication_effective_from": effective_from.isoformat(),
+                    "reporting_code": "0021",
+                },
+            )
+        )
+        facts = 1
+        for match in matches[1:]:
+            raw_name, raw_rate, reporting_code = match.groups()
+            if "see New York City " in raw_name:
+                raw_name = raw_name.rsplit("see New York City ", 1)[-1]
+            name = (
+                raw_name.replace("*", "")
+                .replace(" – except", "")
+                .replace(" (city)", "")
+                .strip()
+            )
+            if not name or "New York State only" in name:
+                continue
+            is_city = "(city)" in raw_name or name == "New York City"
+            tax_level = 3 if is_city else 2
+            local = self._ny_local_jurisdiction(
+                session,
+                source=source,
+                name=name,
+                tax_level=tax_level,
+                namespace="sales",
+                metadata={
+                    "assignment": "official_reporting_jurisdiction",
+                    "reporting_code": reporting_code,
+                    "published_combined_rate": raw_rate,
+                },
+            )
+            combined_rate = _ny_percent(raw_rate)
+            local_rate = combined_rate - state_rate
+            created = _upsert_fact(
+                session,
+                run=run,
+                jurisdiction=local,
+                source=source,
+                natural_key=(
+                    f"ny:dor:sales-use-local:{tax_level}:{_slug(name)}"
+                ),
+                tax_name=f"{name} local sales and use tax",
+                tax_family="sales_and_use",
+                service_category="locally_taxable_sales_and_services",
+                rate=local_rate,
+                effective_from=effective_from,
+                effective_to=None,
+                citation="New York Tax Law Article 29; Publication 718",
+                locator=source.url,
+                base_rule=(
+                    "Local component derived from the official combined rate less "
+                    "the four-percent New York State rate. Apply only after the "
+                    "service is classified as taxable and the reporting jurisdiction "
+                    "is assigned; ZIP codes are not reporting jurisdictions."
+                ),
+                raw_payload={
+                    "published_name": raw_name,
+                    "published_combined_rate": raw_rate,
+                    "state_rate": "4%",
+                    "reporting_code": reporting_code,
+                },
+            )
+            inserted += int(created)
+            facts += 1
+        return facts, inserted
+
+    def _ny_telecom_taxability(
+        self, session, run, source, jurisdiction, content: bytes
+    ) -> tuple[int, int]:
+        text = re.sub(
+            r"\s+",
+            " ",
+            BeautifulSoup(content, "html.parser").get_text(" ", strip=True),
+        )
+        marker = "utility and (intrastate) telecommunication services"
+        if marker.casefold() not in text.casefold():
+            raise ValueError("New York telecommunications taxability statement changed")
+        created = _upsert_fact(
+            session,
+            run=run,
+            jurisdiction=jurisdiction,
+            source=source,
+            natural_key="ny:dor:intrastate-telecommunications-sales-taxability",
+            tax_name="New York sales-tax treatment — intrastate telecommunications",
+            tax_family="sales_and_use",
+            service_category="intrastate_telecommunications_service",
+            unit="taxability_rule",
+            status="taxable",
+            effective_from=date(1965, 8, 1),
+            effective_to=None,
+            citation="New York Tax Law § 1105(b); NYS DTF Quick Reference Guide",
+            locator=source.url,
+            base_rule=(
+                "Intrastate telecommunications services are included in the "
+                "Department's list of taxable services. Product classification, "
+                "sourcing, exclusions, and exemptions require their own rules."
+            ),
+            raw_payload={"validated_statement": marker},
+        )
+        return 1, int(created)
+
+    def _ny_wireless_surcharge(
+        self,
+        session,
+        run,
+        source,
+        jurisdiction,
+        content: bytes,
+        *,
+        prepaid: bool,
+    ) -> tuple[int, int]:
+        soup = BeautifulSoup(content, "html.parser")
+        text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
+        date_match = re.search(
+            r"Effective\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})",
+            text,
+        )
+        state_match = re.search(
+            r"is\s+\$(\d+(?:\.\d+)?)"
+            + (
+                r"\s+\(\d+\s+cents\)\s+on each retail sale"
+                if prepaid
+                else r"\s+per month for each device"
+            ),
+            text,
+            re.IGNORECASE,
+        )
+        if not date_match or not state_match:
+            raise ValueError("New York wireless surcharge header format changed")
+        month = {
+            name: index
+            for index, name in enumerate(
+                (
+                    "",
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                )
+            )
+        }[date_match.group(1)]
+        effective_from = date(
+            int(date_match.group(3)), month, int(date_match.group(2))
+        )
+        state_amount = Decimal(state_match.group(1))
+        flavor = "prepaid" if prepaid else "postpaid"
+        unit = "per_retail_sale" if prepaid else "per_device_month"
+        inserted = int(
+            _upsert_fact(
+                session,
+                run=run,
+                jurisdiction=jurisdiction,
+                source=source,
+                natural_key=f"ny:dor:wireless-surcharge:{flavor}:state",
+                tax_name=f"New York State {flavor} wireless communications surcharge",
+                tax_family="public_safety",
+                service_category=f"{flavor}_wireless_communications_service",
+                flat_amount=state_amount,
+                unit=unit,
+                effective_from=effective_from,
+                effective_to=None,
+                citation=f"New York Tax Law § 186-f; Publication {'452' if prepaid else '451'}",
+                locator=source.url,
+                base_rule=(
+                    "State surcharge on each retail sale occurring in New York."
+                    if prepaid
+                    else (
+                        "State monthly surcharge for each device in service during "
+                        "any part of a month when the customer's place of primary "
+                        "use is in New York."
+                    )
+                ),
+                raw_payload={"published_state_amount": str(state_amount)},
+            )
+        )
+        facts = 1
+        tables = soup.find_all("table")
+        if not tables:
+            raise ValueError("New York wireless surcharge locality table was not found")
+        expiration_notes: dict[str, date] = {}
+        if len(tables) > 1:
+            for cells in _table_rows(soup, 1):
+                if len(cells) < 2 or not cells[0].isdigit():
+                    continue
+                expiration = re.search(
+                    r"expires\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})",
+                    cells[1],
+                    re.IGNORECASE,
+                )
+                if expiration:
+                    expiration_notes[cells[0]] = date(
+                        int(expiration.group(3)),
+                        {
+                            name: index
+                            for index, name in enumerate(
+                                (
+                                    "",
+                                    "January",
+                                    "February",
+                                    "March",
+                                    "April",
+                                    "May",
+                                    "June",
+                                    "July",
+                                    "August",
+                                    "September",
+                                    "October",
+                                    "November",
+                                    "December",
+                                )
+                            )
+                        }[expiration.group(1)],
+                        int(expiration.group(2)),
+                    )
+        for cells in _table_rows(soup, 0)[1:]:
+            if len(cells) < 2 or not cells[1].startswith("$"):
+                continue
+            raw_name = cells[0]
+            note_match = re.search(r"\s+([1-9])$", raw_name)
+            note = note_match.group(1) if note_match else None
+            name = re.sub(r"\s+[1-9]$", "", raw_name).strip()
+            is_city = name == "New York City"
+            if name.endswith(" County"):
+                name = name[: -len(" County")]
+            tax_level = 3 if is_city else 2
+            combined_amount = Decimal(cells[1].lstrip("$").replace(",", ""))
+            local_amount = combined_amount - state_amount
+            local = self._ny_local_jurisdiction(
+                session,
+                source=source,
+                name=name,
+                tax_level=tax_level,
+                namespace=f"wireless-{flavor}",
+                metadata={
+                    "assignment": (
+                        "place_of_primary_use" if not prepaid else "retail_sale_location"
+                    ),
+                    "published_combined_amount": str(combined_amount),
+                },
+            )
+            created = _upsert_fact(
+                session,
+                run=run,
+                jurisdiction=local,
+                source=source,
+                natural_key=(
+                    f"ny:dor:wireless-surcharge:{flavor}:local:"
+                    f"{tax_level}:{_slug(name)}"
+                ),
+                tax_name=f"{name} local {flavor} wireless communications surcharge",
+                tax_family="public_safety",
+                service_category=f"{flavor}_wireless_communications_service",
+                flat_amount=local_amount,
+                unit=unit,
+                effective_from=effective_from,
+                effective_to=expiration_notes.get(note),
+                citation=f"New York Tax Law § 186-f; Publication {'452' if prepaid else '451'}",
+                locator=source.url,
+                base_rule=(
+                    "Local component derived from the published combined surcharge "
+                    "less the New York State surcharge."
+                ),
+                raw_payload={
+                    "published_name": raw_name,
+                    "published_combined_amount": str(combined_amount),
+                    "state_amount": str(state_amount),
+                    "expiration_note": note,
+                },
+            )
+            inserted += int(created)
+            facts += 1
+        return facts, inserted
+
+    def _ny_telecom_excise(
+        self, session, run, source, jurisdiction, content: bytes
+    ) -> tuple[int, int]:
+        text = re.sub(
+            r"\s+",
+            " ",
+            BeautifulSoup(content, "html.parser").get_text(" ", strip=True),
+        )
+        nonmobile = re.search(
+            r"§\s*186-e provides for an excise tax on telecommunications "
+            r"services at rate of\s+(\d+(?:\.\d+)?)\s+percent",
+            text,
+            re.IGNORECASE,
+        )
+        mobile = re.search(
+            r"sale of mobile telecommunication services.*?rate of\s+"
+            r"(\d+(?:\.\d+)?)\s+percent",
+            text,
+            re.IGNORECASE,
+        )
+        if not nonmobile or not mobile:
+            raise ValueError("New York telecommunications excise rates were not found")
+        inputs = (
+            (
+                "nonmobile",
+                Decimal(nonmobile.group(1)) / 100,
+                "nonmobile_telecommunications_provider_gross_receipts",
+                (
+                    "Gross receipts from intrastate services and interstate or "
+                    "international services that originate or terminate in New York "
+                    "and are billed to a New York service address."
+                ),
+            ),
+            (
+                "mobile",
+                Decimal(mobile.group(1)) / 100,
+                "mobile_telecommunications_provider_gross_receipts",
+                (
+                    "Gross receipts from mobile telecommunications provided by a "
+                    "home service provider when the customer's place of primary use "
+                    "is within New York."
+                ),
+            ),
+        )
+        inserted = 0
+        for flavor, rate, category, base_rule in inputs:
+            created = _upsert_fact(
+                session,
+                run=run,
+                jurisdiction=jurisdiction,
+                source=source,
+                natural_key=f"ny:dor:telecommunications-excise:{flavor}",
+                tax_name=f"New York {flavor} telecommunications excise tax",
+                tax_family="gross_receipts",
+                service_category=category,
+                rate=rate,
+                effective_from=date(2015, 5, 1) if flavor == "mobile" else date(2000, 1, 1),
+                effective_to=None,
+                citation="New York Tax Law § 186-e",
+                locator=source.url,
+                base_rule=base_rule,
+                raw_payload={"published_rate": f"{rate * 100}%"},
+            )
+            inserted += int(created)
+        return 2, inserted
 
     def _ca_surcharge(
         self, session, run, source, jurisdiction, content: bytes

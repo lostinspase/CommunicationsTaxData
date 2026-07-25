@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections.abc import Iterable
+from datetime import date, timedelta
 
 from sqlalchemy import Engine, create_engine, delete, func, select, text
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ from communications_tax_data.models import (
     BenchmarkRateChange,
     CollectionRun,
     CustomerTaxNeed,
+    CustomerTaxNeedDetail,
     TaxTypeCrosswalk,
     utcnow,
 )
@@ -90,9 +92,11 @@ def sync_benchmark(session: Session) -> dict[str, int]:
         "rates": 0,
         "rate_changes_inserted": 0,
         "customer_needs": 0,
+        "customer_need_details": 0,
         "tax_type_candidates_inserted": 0,
     }
     try:
+        session.execute(delete(CustomerTaxNeedDetail))
         session.execute(delete(BenchmarkRate))
         session.execute(delete(BenchmarkJurisdiction))
         session.execute(delete(CustomerTaxNeed))
@@ -190,6 +194,66 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 session.execute(CustomerTaxNeed.__table__.insert(), batch)
                 counts["customer_needs"] += len(batch)
                 session.flush()
+            trailing_start = date.today() - timedelta(days=365)
+            customer_detail_sql = text(
+                """
+                SELECT c.user_id AS customer_id, c.customer_number,
+                       r.p_code, LEFT(TRIM(addr.postal_code), 5) AS postal_code,
+                       addr.plus_four, LEFT(addr.state, 8) AS state_code,
+                       addr.country AS country_code,
+                       r.tax_type, r.tax_level, r.tax_category, r.tax_description,
+                       (c.closed = 0 AND c.test_account = 0
+                         AND c.generate_invoices = 1) AS active_customer,
+                       MIN(i.stop) AS first_tax_invoice,
+                       MAX(i.stop) AS last_tax_invoice,
+                       COUNT(*) AS tax_charge_rows,
+                       SUM(ABS(t.total)) AS lifetime_tax_amount,
+                       SUM(CASE WHEN i.stop >= :trailing_start THEN 1 ELSE 0 END)
+                         AS trailing_12m_charge_rows,
+                       SUM(CASE WHEN i.stop >= :trailing_start
+                                THEN ABS(t.total) ELSE 0 END)
+                         AS trailing_12m_tax_amount
+                FROM apeiron_apeirontaxchargessummary t
+                INNER JOIN apeiron_apeironinvoice i ON i.id = t.invoice_id
+                INNER JOIN apeiron_apeironcustomer c ON c.user_id = t.customer_id
+                INNER JOIN apeiron_avalarataxrate r ON r.id = t.avalara_id
+                LEFT JOIN apeiron_apeironaddress addr
+                  ON addr.id = c.service_address_id
+                WHERE t.total <> 0
+                GROUP BY c.user_id, c.customer_number, r.p_code,
+                         LEFT(TRIM(addr.postal_code), 5), addr.plus_four,
+                         LEFT(addr.state, 8), addr.country,
+                         r.tax_type, r.tax_level, r.tax_category,
+                         r.tax_description, c.closed, c.test_account,
+                         c.generate_invoices
+                ORDER BY c.user_id, r.p_code, r.tax_level, r.tax_type
+                """
+            )
+            for batch in _chunks(
+                connection.execute(
+                    customer_detail_sql,
+                    {"trailing_start": trailing_start},
+                ).mappings()
+            ):
+                now = utcnow()
+                for row in batch:
+                    row["detail_key"] = hashlib.sha256(
+                        "|".join(
+                            [
+                                str(row["customer_id"]),
+                                str(row["p_code"]),
+                                str(row["tax_type"]),
+                                str(row["tax_level"]),
+                                (row["tax_category"] or "").strip().casefold(),
+                                (row["tax_description"] or "").strip().casefold(),
+                            ]
+                        ).encode()
+                    ).hexdigest()
+                    row["trailing_window_start"] = trailing_start
+                    row["synced_at"] = now
+                session.execute(CustomerTaxNeedDetail.__table__.insert(), batch)
+                counts["customer_need_details"] += len(batch)
+                session.flush()
             type_sql = text(
                 """
                 SELECT DISTINCT tax_type, tax_level, tax_category, tax_description
@@ -241,18 +305,20 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 enrich_federal_usf_crosswalk(session)
             )
         run.status = "success"
-        run.source_count = 4
+        run.source_count = 5
         run.records_seen = (
             counts["jurisdictions"]
             + counts["rates"]
             + counts["rate_changes_inserted"]
             + counts["customer_needs"]
+            + counts["customer_need_details"]
         )
         run.records_inserted = (
             counts["jurisdictions"]
             + counts["rates"]
             + counts["rate_changes_inserted"]
             + counts["customer_needs"]
+            + counts["customer_need_details"]
             + counts["tax_type_candidates_inserted"]
         )
         run.details = counts

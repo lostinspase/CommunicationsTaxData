@@ -18,8 +18,9 @@ The first release intentionally reports what public data cannot reproduce.
 | SST rate files | 24 member states; state/county/city/special district sales/use components | `sst` | Does not establish whether a communications product is taxable |
 | Census ZCTA relationships | Nationwide ZCTA-to-county and ZCTA-to-place intersections | `census` | Statistical geography, not USPS ZIP+4 or rooftop assignment |
 | State authority register | 50 PUC/PSC and 50 revenue authority sites | `monitor` | Site health is not counted as rule coverage |
-| CA/PA state rules | CPUC rates, CDTFA mobile guidance, PA GRT/rate/taxability | `state` | First proof states; both remain partial |
+| CA/NY/PA state rules | CPUC/CDTFA, NY DTF sales/wireless/excise, PA DOR | `state` | Source-verified vertical slices; none is yet calculation-ready |
 | Avalara benchmark | Supplied address/rate tables from read-only replica | `benchmark-sync` | Used only for completeness comparisons |
+| Invoice demand | Tax actually billed by customer, p_code, type, and level | `benchmark-sync` | Ranks acquisition; never exposes customer data on the work-queue API |
 
 All facts use half-open business semantics represented as inclusive `effective_from` and
 `effective_to` dates. Source checks preserve hashes, ETags, last-modified headers, status,
@@ -50,6 +51,7 @@ Open <http://127.0.0.1:8080>. JSON endpoints are available at:
 - `/api/exceptions?state=CA&exception_type=MISSING_PUBLIC_RATE`
 - `/api/coverage-metrics?scope=customer_active`
 - `/api/priority-locations?active_only=true&recent_days=365`
+- `/api/acquisition-queue`
 - `/api/tax-types?mapping_status=proposed`
 - `/api/filing-map?tax_type=6`
 - `/api/changes?change_source=benchmark`
@@ -133,10 +135,14 @@ Apeiron application tables.
 - `ctd_benchmark_rate_change`: append-only mirror of the supplied Avalara changelog.
 - `ctd_customer_tax_need`: customer-number/location priority set derived from actual
   nonzero invoice-tax history.
+- `ctd_customer_tax_need_detail`: trailing-12-month and lifetime billed demand by
+  customer, p_code, tax type, and tax level.
 - `ctd_coverage_metric`: versioned numerator, denominator, percentage, methodology, and
   scope for total and customer-weighted comparisons.
 - `ctd_tax_type_crosswalk`: proposed and reviewed mappings from Avalara
   type/level/description signatures to CTD concepts.
+- `ctd_tax_fact_benchmark_map`: state/p_code-aware source-verified links from a
+  commercial type/level route to a public legal fact.
 - `ctd_tax_fact_change`: field-level history for changes to normalized public facts.
 - `ctd_filing_entity`, `ctd_filing_document`, and `ctd_tax_filing_map`: reporting entity,
   payment recipient, return/portal, exemption document, cadence, due rule, and citation.
@@ -201,6 +207,11 @@ The exception report is the work queue. The largest substantive workstreams are:
 - current USPS ZIP+4 or licensed address GIS plus 911/rate-center boundaries;
 - service/product taxonomy mapping to Apeiron's engine;
 - legal review and approval workflow for interpretive rules.
+
+The live `/work-queue` page provides the operational order: it ranks state and local
+targets by trailing-365-day tax billed, and reports legal-rule and filing-map gaps
+separately. This makes the first local expansion demand-driven rather than a 50-state
+alphabetical scrape.
 
 See [docs/architecture.md](docs/architecture.md) and
 [docs/source-coverage.md](docs/source-coverage.md). Production installation and

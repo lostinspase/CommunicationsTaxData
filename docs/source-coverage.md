@@ -13,6 +13,10 @@
 | California PUC | CPUC surcharge and user-fee tables | Daily; source cadence 7 days | Flat per-line surcharge and gross-intrastate-revenue user-fee histories |
 | California revenue | CDTFA mobile-phone industry guidance | Daily; source cadence 14 days | Standalone service/data-plan taxability rule and device/prepaid distinction |
 | Pennsylvania revenue | DOR gross-receipts, sales/use, and telecom bulletin | Daily; source cadence 14–30 days | 50-mill GRT, 6% state rate, and telecom taxability/base rule |
+| New York sales/use | DTF Publication 718 and telecommunications quick reference | Daily; source cadence 7–14 days | State rate, 76 reporting-jurisdiction local components/codes, and intrastate telecom taxability |
+| New York wireless | DTF Publications 451 and 452 | Daily; source cadence 7 days | Effective-dated state and county/NYC postpaid and prepaid surcharge components |
+| New York provider tax | DTF Tax Expenditure Report and current CT-186-E materials | Daily; source cadence 30 days | § 186-e nonmobile/mobile rates, bases, recipient, and return |
+| Invoice demand | Apeiron invoice tax linked to benchmark rate IDs | Daily | Trailing-365-day and lifetime dollars/rows by customer, p_code, type, and level |
 
 ## Monitored discovery sources
 
@@ -42,14 +46,21 @@ availability/content change and gives parsed rule sources a shorter cadence.
   regimes. The former applies the state sales/use rate to covered telecommunications
   under 61 Pa. Code § 60.20, with listed sourcing and exemptions. The latter is a
   provider gross-receipts tax reported on RCT-111 under 72 P.S. § 8101.
-- The other 48 states are cataloged and monitored but remain `not_pulled` until a
+- New York Publication 718 explicitly says reporting codes, rather than ZIP codes,
+  should identify customer location. CTD therefore stores its state/local component and
+  reporting-code evidence separately from any commercial p_code. Publications 451/452
+  likewise separate the state amount from county/New York City wireless surcharges.
+  Local municipal telecommunications gross-receipts taxes remain a demand-ranked local
+  ordinance gap; they are not inferred from the state § 186-e provider tax.
+- The other 47 states are cataloged and monitored but remain `not_pulled` until a
   state-specific parser validates rates, bases, effective dates, taxability, sourcing,
   exemptions, and filing routes. A generic sales-tax rate or healthy homepage is not
   credited as communications-tax rule coverage.
 
 ## Priority acquisition sequence
 
-1. Rank gaps by active customer p_code, recent invoice-tax use, and tax dollars.
+1. Rank gaps from `ctd_customer_tax_need_detail` by active customer p_code,
+   trailing-365-day invoice-tax use, and tax dollars.
 2. Implement state communications and filing sources for those states: PUC assessments, USF, TRS,
    911/988, gross receipts, and communications-specific sales tax.
 3. Add the return, payment portal/payee, exemption forms, and due rule for every reviewed

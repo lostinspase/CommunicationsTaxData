@@ -20,7 +20,10 @@ from communications_tax_data.collectors import (
 from communications_tax_data.comparison import compare_coverage, write_exception_report
 from communications_tax_data.config import get_settings
 from communications_tax_data.db import create_schema, get_engine, session_scope
-from communications_tax_data.filing import seed_federal_filing_map
+from communications_tax_data.filing import (
+    seed_federal_filing_map,
+    seed_state_filing_and_benchmark_maps,
+)
 from communications_tax_data.location_profiles import build_customer_location_profiles
 
 app = typer.Typer(no_args_is_help=True, help="Apeiron public tax-data collection agent.")
@@ -96,10 +99,13 @@ def benchmark_sync() -> None:
 
 @app.command("seed-filing-map")
 def seed_filing_map() -> None:
-    """Seed source-verified federal filing entities, forms, and payment links."""
+    """Seed verified federal/state fact links, filing entities, forms, and payments."""
     create_schema()
     with session_scope() as session:
-        counts = seed_federal_filing_map(session)
+        counts = {
+            "federal": seed_federal_filing_map(session),
+            "states": seed_state_filing_and_benchmark_maps(session),
+        }
     typer.echo(json.dumps(counts, indent=2))
 
 

@@ -257,6 +257,75 @@ STATE_RULE_SOURCES = [
         "cadence_days": 30,
         "notes": "Enhanced/non-enhanced telecommunications classifications and sourcing.",
     },
+    {
+        "code": "state-rule-ny-sales-rates",
+        "name": "New York sales and use tax rates by jurisdiction — Publication 718",
+        "publisher": "New York State Department of Taxation and Finance",
+        "source_type": "state_revenue_rate",
+        "url": "https://www.tax.ny.gov/pdf/publications/sales/pub718.pdf",
+        "tax_level": 2,
+        "state_code": "NY",
+        "parser": "state-rules",
+        "cadence_days": 7,
+        "notes": (
+            "Current combined state/local rates and official return reporting codes; "
+            "reporting codes, not ZIP codes, identify the filing jurisdiction."
+        ),
+    },
+    {
+        "code": "state-rule-ny-telecom-taxability",
+        "name": "New York sales-tax quick reference — telecommunications",
+        "publisher": "New York State Department of Taxation and Finance",
+        "source_type": "state_revenue_taxability",
+        "url": (
+            "https://www.tax.ny.gov/pubs_and_bulls/tg_bulletins/st/"
+            "quick_reference_guide_for_taxable_and_exempt_property_and_services.htm"
+        ),
+        "tax_level": 1,
+        "state_code": "NY",
+        "parser": "state-rules",
+        "cadence_days": 14,
+        "notes": "Official taxable-services classification for intrastate telecommunications.",
+    },
+    {
+        "code": "state-rule-ny-wireless-postpaid",
+        "name": "New York postpaid wireless communications surcharge — Publication 451",
+        "publisher": "New York State Department of Taxation and Finance",
+        "source_type": "state_revenue_rate",
+        "url": "https://www.tax.ny.gov/forms/publications/2025/wcs/pub451.htm",
+        "tax_level": 2,
+        "state_code": "NY",
+        "parser": "state-rules",
+        "cadence_days": 7,
+        "notes": "State and county/New York City per-device monthly surcharge rates.",
+    },
+    {
+        "code": "state-rule-ny-wireless-prepaid",
+        "name": "New York prepaid wireless communications surcharge — Publication 452",
+        "publisher": "New York State Department of Taxation and Finance",
+        "source_type": "state_revenue_rate",
+        "url": "https://www.tax.ny.gov/forms/publications/2025/wcs/pub452.htm",
+        "tax_level": 2,
+        "state_code": "NY",
+        "parser": "state-rules",
+        "cadence_days": 7,
+        "notes": "State and county/New York City per-retail-sale surcharge rates.",
+    },
+    {
+        "code": "state-rule-ny-telecom-excise",
+        "name": "New York telecommunications excise tax rates and base",
+        "publisher": "New York State Department of Taxation and Finance",
+        "source_type": "state_revenue_rate",
+        "url": (
+            "https://www.tax.ny.gov/data/stats/ter/fiscal-year26/"
+            "corporation-tax.htm"
+        ),
+        "tax_level": 1,
+        "state_code": "NY",
+        "parser": "state-rules",
+        "cadence_days": 30,
+        "notes": "Tax Law § 186-e nonmobile and mobile provider gross-receipts rates.",
+    },
 ]
 
 

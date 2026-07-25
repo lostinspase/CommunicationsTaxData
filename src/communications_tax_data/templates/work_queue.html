@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acquisition Work Queue · Communications Tax Data</title>
+  <style>
+    :root { color-scheme:light; --ink:#132521; --muted:#60716c; --line:#d9e2df;
+      --paper:#f5f7f2; --card:#fff; --green:#0d6753; --red:#a33a2b;
+      --red-soft:#f7e6df; --gold:#8a6208; --gold-soft:#fff2cc; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,ui-sans-serif,system-ui,sans-serif;
+      color:var(--ink); background:var(--paper); }
+    a { color:var(--green); text-underline-offset:2px; }
+    header { padding:28px max(24px,calc((100vw - 1320px)/2)); background:var(--ink); color:white; }
+    header a { color:#d6e7e1; }
+    header h1 { margin:18px 0 5px; font-size:clamp(27px,4vw,42px); letter-spacing:-.035em; }
+    header p { max-width:850px; margin:0; color:#b9cbc5; line-height:1.5; }
+    main { max-width:1320px; margin:0 auto; padding:24px 24px 60px; }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:12px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; }
+    .metric { padding:16px; }
+    .metric b { display:block; font-size:26px; letter-spacing:-.03em; }
+    .metric span,.note,.sub { color:var(--muted); font-size:12px; line-height:1.45; }
+    .section { margin-top:18px; padding:18px; }
+    h2 { margin:0 0 5px; font-size:18px; }
+    .table-wrap { overflow:auto; margin-top:13px; }
+    table { border-collapse:collapse; width:100%; min-width:920px; font-size:13px; }
+    th,td { padding:11px 9px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+    td.num,th.num { text-align:right; font-variant-numeric:tabular-nums; }
+    .pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px;
+      font-weight:650; background:#e5efeb; color:var(--green); white-space:nowrap; }
+    .gap { background:var(--red-soft); color:var(--red); }
+    .partial { background:var(--gold-soft); color:var(--gold); }
+    .controls { display:flex; gap:9px; flex-wrap:wrap; margin-top:12px; }
+    input,select { min-height:39px; border:1px solid var(--line); border-radius:8px;
+      background:white; padding:8px 10px; font:inherit; }
+    input { flex:1; min-width:230px; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+<header>
+  <a href="/">← Main dashboard</a> · <a href="/states">50-state authority register</a>
+  <h1>Invoice-Demand Acquisition Queue</h1>
+  <p>Work is ranked by tax dollars actually billed to active customers in the trailing
+    365 days. Commercial p_codes identify the current target only; public-source facts,
+    jurisdiction evidence, legal mappings, and filing recipients remain CTD-owned.</p>
+</header>
+<main>
+  <section class="metrics">
+    <div class="card metric"><b>{{ summary.customers }}</b><span>active billed customers</span></div>
+    <div class="card metric"><b>{{ summary.p_codes }}</b><span>p_codes with demand</span></div>
+    <div class="card metric"><b>${{ "{:,.2f}".format(summary.state_tax_amount) }}</b><span>state tax billed</span></div>
+    <div class="card metric"><b>${{ "{:,.2f}".format(summary.local_tax_amount) }}</b><span>county + municipal billed</span></div>
+    <div class="card metric"><b>{{ summary.local_p_codes }}</b><span>local p_codes to source</span></div>
+    <div class="card metric"><b>{{ summary.demanded_tax_types }}</b><span>demanded type/level pairs</span></div>
+  </section>
+
+  <section class="card section">
+    <h2>State acquisition order</h2>
+    <p class="note">Includes state, county, and municipal billed demand. Gaps count distinct
+      tax type/level pairs without legal support or a filing recipient.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Rank</th><th>State</th><th class="num">Total billed</th>
+        <th class="num">State</th><th class="num">Local</th><th class="num">Customers</th>
+        <th class="num">p_codes</th><th class="num">Types</th><th>Rule gaps</th><th>Filing gaps</th></tr></thead>
+      <tbody>{% for row in states %}
+        <tr><td>{{ loop.index }}</td><td><strong>{{ row.state }}</strong></td>
+          <td class="num">${{ "{:,.2f}".format(row.amount) }}</td>
+          <td class="num">${{ "{:,.2f}".format(row.state_amount) }}</td>
+          <td class="num">${{ "{:,.2f}".format(row.local_amount) }}</td>
+          <td class="num">{{ row.customers }}</td><td class="num">{{ row.p_codes }}</td>
+          <td class="num">{{ row.tax_types }}</td>
+          <td><span class="pill {{ 'gap' if row.unsupported_types else '' }}">{{ row.unsupported_types }}</span></td>
+          <td><span class="pill {{ 'gap' if row.filing_gaps else '' }}">{{ row.filing_gaps }}</span></td></tr>
+      {% else %}<tr><td colspan="10">Run benchmark-sync to populate detailed invoice demand.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+
+  <section class="card section">
+    <h2>County and municipal target queue</h2>
+    <div class="controls">
+      <input id="local-search" type="search" placeholder="Filter locality, county, state, ZIP, or p_code…">
+      <select id="local-state"><option value="">All states</option>
+        {% for code in states|map(attribute='state')|sort %}<option>{{ code }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Rank</th><th>Jurisdiction target</th><th>p_code / ZIP</th>
+        <th class="num">Local billed</th><th class="num">County</th><th class="num">Municipal</th>
+        <th class="num">Customers</th><th class="num">Types</th><th>Rule gaps</th><th>Filing gaps</th></tr></thead>
+      <tbody id="local-rows">{% for row in localities %}
+        <tr data-state="{{ row.state }}" data-search="{{ row.state }} {{ row.county }} {{ row.locality }} {{ row.postal_code }} {{ row.p_code }}">
+          <td>{{ loop.index }}</td><td><strong>{{ row.locality or "—" }}</strong>
+            <span class="sub">{{ row.county or "Unknown county" }}, {{ row.state }}</span></td>
+          <td>{{ row.p_code }}<span class="sub">{{ row.postal_code or "No ZIP" }}</span></td>
+          <td class="num">${{ "{:,.2f}".format(row.amount) }}</td>
+          <td class="num">${{ "{:,.2f}".format(row.county_amount) }}</td>
+          <td class="num">${{ "{:,.2f}".format(row.municipal_amount) }}</td>
+          <td class="num">{{ row.customers }}</td><td class="num">{{ row.tax_types }}</td>
+          <td><span class="pill {{ 'gap' if row.unsupported_types else '' }}">{{ row.unsupported_types }}</span></td>
+          <td><span class="pill {{ 'gap' if row.filing_gaps else '' }}">{{ row.filing_gaps }}</span></td></tr>
+      {% else %}<tr><td colspan="10">No trailing-period local demand.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+
+  <section class="card section">
+    <h2>Tax-type acquisition queue</h2>
+    <p class="note">A type is shown once per level and commercial description. “Legal”
+      means an explicit citation is present; it does not imply reviewed equivalence.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Rank</th><th>Type</th><th>Description</th><th>Level</th>
+        <th class="num">Billed</th><th class="num">Customers</th><th class="num">p_codes</th>
+        <th>States</th><th>Concept</th><th>Legal</th><th>Reviewed</th><th>Filing</th></tr></thead>
+      <tbody>{% for row in tax_types %}
+        <tr><td>{{ loop.index }}</td><td><strong>{{ row.tax_type }}</strong></td>
+          <td>{{ row.description or row.category or "—" }}</td><td>{{ row.tax_level }}</td>
+          <td class="num">${{ "{:,.2f}".format(row.amount) }}</td>
+          <td class="num">{{ row.customers }}</td><td class="num">{{ row.p_codes }}</td>
+          <td>{{ row.states|join(", ") }}</td>
+          {% for flag in (row.concept_mapped,row.legal_support,row.reviewed,row.filing_mapped) %}
+          <td><span class="pill {{ '' if flag else 'gap' }}">{{ "yes" if flag else "no" }}</span></td>
+          {% endfor %}</tr>
+      {% else %}<tr><td colspan="12">No trailing-period demand.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</main>
+<script>
+  const search = document.getElementById("local-search");
+  const state = document.getElementById("local-state");
+  const rows = [...document.querySelectorAll("#local-rows tr[data-search]")];
+  function filterRows() {
+    const text = search.value.trim().toLowerCase();
+    rows.forEach(row => {
+      const show = (!text || row.dataset.search.toLowerCase().includes(text))
+        && (!state.value || row.dataset.state === state.value);
+      row.classList.toggle("hidden", !show);
+    });
+  }
+  search.addEventListener("input", filterRows);
+  state.addEventListener("change", filterRows);
+</script>
+</body>
+</html>

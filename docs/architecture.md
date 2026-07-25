@@ -11,6 +11,11 @@
 6. **Report** missing facts, mismatches, geographic gaps, stale sources, and parser gaps.
 7. **Review** interpretive changes before a calculation engine consumes them.
 
+The acquisition loop is demand-driven: `benchmark-sync` joins invoice tax charges to the
+exact licensed rate row that produced them, stores trailing-365-day demand by
+type/level/p_code, and exposes an aggregate-only work queue. No customer identifiers are
+returned by that queue.
+
 Collectors are idempotent by natural key plus effective date. They do not overwrite a
 historical period with a new current value.
 
@@ -46,6 +51,12 @@ tax-type/location key to the report recipient, payment recipient, return or port
 exemption document, cadence, due rule, reporting basis, and legal citation. Federal seed
 records are public-source verified. State/local mappings remain exceptions until their
 exact tax-type and jurisdiction association is reviewed.
+
+`ctd_tax_fact_benchmark_map` is the state-aware legal bridge between a public fact and a
+commercial type/level route. It includes optional p_code scope so a New York citation
+cannot cover the same numeric type in another state. A source-verified bridge may support
+comparison and work-queue coverage; interpretive product/base decisions still require
+review before calculation use.
 
 ## Location identifiers
 
