@@ -31,6 +31,28 @@ def http_client() -> httpx.Client:
     )
 
 
+def get_with_retry(
+    client: httpx.Client,
+    url: str,
+    *,
+    attempts: int = 4,
+    retry_statuses: frozenset[int] = frozenset({429, 500, 502, 503, 504}),
+) -> httpx.Response:
+    """GET an authoritative source with bounded retry handling for transient failures."""
+    if attempts < 1:
+        raise ValueError("attempts must be at least 1")
+    response: httpx.Response | None = None
+    for attempt in range(attempts):
+        response = client.get(url)
+        if response.status_code not in retry_statuses or attempt == attempts - 1:
+            return response
+        retry_after = response.headers.get("retry-after", "").strip()
+        delay = min(float(retry_after), 30.0) if retry_after.isdigit() else 2.0**attempt
+        time.sleep(delay)
+    assert response is not None
+    return response
+
+
 def get_or_create_source(
     session: Session,
     *,

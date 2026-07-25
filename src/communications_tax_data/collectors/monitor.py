@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from communications_tax_data.collectors.base import (
     CollectionStats,
     finish_run,
+    get_with_retry,
     http_client,
     record_error,
     record_response,
@@ -48,7 +49,7 @@ class SourceMonitor:
         def fetch(client, source):
             started = time.monotonic()
             try:
-                response = client.get(source.url)
+                response = get_with_retry(client, source.url)
                 response.raise_for_status()
                 return source, started, response, None
             except Exception as exc:

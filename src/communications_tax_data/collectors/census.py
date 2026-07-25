@@ -13,6 +13,7 @@ from communications_tax_data.collectors.base import (
     CollectionStats,
     finish_run,
     get_or_create_source,
+    get_with_retry,
     http_client,
     record_response,
     start_run,
@@ -60,7 +61,7 @@ class CensusRelationshipCollector:
                 )
                 stats.inserted += int(created)
                 started = time.monotonic()
-                response = client.get(url)
+                response = get_with_retry(client, url)
                 response.raise_for_status()
                 record_response(session, source=source, run=run, response=response, started=started)
                 parsed = self._load_relationship(session, source, kind, response.content)

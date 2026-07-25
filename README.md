@@ -91,6 +91,16 @@ uv run ctd report
 
 Generated reports are ignored by Git because they can describe licensed benchmark data.
 
+For a first production deployment, a previously verified local seed can be copied in
+bounded batches and one atomic transaction:
+
+```bash
+uv run ctd bootstrap --source communications_tax_data.sqlite3 --replace
+```
+
+`--replace` deletes and reloads only the nine `ctd_*` tables. It never touches existing
+Apeiron application tables.
+
 ## Data model
 
 - `ctd_source` and `ctd_source_check`: source ownership, cadence, parser, retrieval
@@ -147,7 +157,9 @@ The exception report is the work queue. The largest substantive workstreams are:
 - legal review and approval workflow for interpretive rules.
 
 See [docs/architecture.md](docs/architecture.md) and
-[docs/source-coverage.md](docs/source-coverage.md).
+[docs/source-coverage.md](docs/source-coverage.md). Production installation and
+operations are documented in
+[docs/production-deployment.md](docs/production-deployment.md).
 
 ## Development
 

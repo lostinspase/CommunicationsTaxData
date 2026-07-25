@@ -11,6 +11,8 @@ htmlcov/
 dist/
 build/
 data/downloads/
+logs/
+runtime/
 reports/*.csv
 reports/*.json
 !reports/.gitkeep

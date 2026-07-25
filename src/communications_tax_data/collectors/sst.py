@@ -18,6 +18,7 @@ from communications_tax_data.collectors.base import (
     CollectionStats,
     finish_run,
     get_or_create_source,
+    get_with_retry,
     http_client,
     record_response,
     start_run,
@@ -64,7 +65,7 @@ class SstRateCollector:
         )
         with http_client() as client:
             started = time.monotonic()
-            response = client.get(RATE_DIRECTORY)
+            response = get_with_retry(client, RATE_DIRECTORY)
             response.raise_for_status()
             record_response(session, source=directory, run=run, response=response, started=started)
             files = self._discover(response.text)
@@ -89,7 +90,7 @@ class SstRateCollector:
                 )
                 stats.inserted += int(created)
                 started = time.monotonic()
-                file_response = client.get(url)
+                file_response = get_with_retry(client, url)
                 file_response.raise_for_status()
                 digest = record_response(
                     session, source=source, run=run, response=file_response, started=started

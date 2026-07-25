@@ -16,6 +16,7 @@ from communications_tax_data.collectors.base import (
     CollectionStats,
     finish_run,
     get_or_create_source,
+    get_with_retry,
     http_client,
     record_response,
     start_run,
@@ -138,7 +139,7 @@ class FederalCollector:
         )
         stats.inserted += int(created)
         started = time.monotonic()
-        response = client.get(USAC_URL)
+        response = get_with_retry(client, USAC_URL)
         response.raise_for_status()
         record_response(session, source=source, run=run, response=response, started=started)
         stats.sources += 1
@@ -209,7 +210,7 @@ class FederalCollector:
         )
         stats.inserted += int(created)
         started = time.monotonic()
-        response = client.get(IRS_URL)
+        response = get_with_retry(client, IRS_URL)
         response.raise_for_status()
         record_response(session, source=source, run=run, response=response, started=started)
         stats.sources += 1
@@ -260,7 +261,7 @@ class FederalCollector:
         )
         stats.inserted += int(created)
         started = time.monotonic()
-        response = client.get(TRS_URL)
+        response = get_with_retry(client, TRS_URL)
         response.raise_for_status()
         record_response(session, source=source, run=run, response=response, started=started)
         stats.sources += 1

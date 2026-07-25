@@ -8,6 +8,7 @@ import typer
 import uvicorn
 
 from communications_tax_data.benchmark import sync_benchmark
+from communications_tax_data.bootstrap import bootstrap_from_sqlite
 from communications_tax_data.catalog import seed_catalog
 from communications_tax_data.collectors import (
     CensusRelationshipCollector,
@@ -17,7 +18,7 @@ from communications_tax_data.collectors import (
 )
 from communications_tax_data.comparison import compare_coverage, write_exception_report
 from communications_tax_data.config import get_settings
-from communications_tax_data.db import create_schema, session_scope
+from communications_tax_data.db import create_schema, get_engine, session_scope
 
 app = typer.Typer(no_args_is_help=True, help="Apeiron public tax-data collection agent.")
 
@@ -87,6 +88,34 @@ def benchmark_sync() -> None:
     with session_scope() as session:
         counts = sync_benchmark(session)
     typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("bootstrap")
+def bootstrap(
+    source: Path = typer.Option(
+        Path("communications_tax_data.sqlite3"),
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="Verified local SQLite seed to copy.",
+    ),
+    replace: bool = typer.Option(
+        False,
+        "--replace",
+        help="Replace rows in CTD-prefixed target tables. Other tables are untouched.",
+    ),
+    batch_size: int = typer.Option(1000, min=1, max=10000),
+) -> None:
+    """Atomically bootstrap CTD tables from a verified local SQLite seed."""
+    create_schema()
+    counts = bootstrap_from_sqlite(
+        get_engine(),
+        source,
+        replace=replace,
+        batch_size=batch_size,
+        progress=lambda table, count: typer.echo(f"{table}: {count:,} rows"),
+    )
+    typer.echo(f"Bootstrap complete: {sum(counts.values()):,} rows across {len(counts)} tables.")
 
 
 @app.command("compare")
