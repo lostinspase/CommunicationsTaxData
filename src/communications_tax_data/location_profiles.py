@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import date
 
 from sqlalchemy import delete, select
@@ -41,7 +42,11 @@ def build_customer_location_profiles(
 
     grouped: dict[tuple[str, str | None], list[CustomerTaxNeed]] = {}
     for customer in customers:
-        if customer.postal_code:
+        if (
+            customer.postal_code
+            and re.fullmatch(r"\d{5}", customer.postal_code)
+            and (customer.country_code or "").upper() in {"US", "USA"}
+        ):
             grouped.setdefault(
                 (customer.postal_code, customer.plus_four or None), []
             ).append(customer)

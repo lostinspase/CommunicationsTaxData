@@ -162,7 +162,8 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 """
                 SELECT c.user_id AS customer_id, c.customer_number,
                        a.p_code, LEFT(TRIM(a.postal_code), 5) AS postal_code,
-                       a.plus_four, a.state AS state_code, a.country AS country_code,
+                       a.plus_four, LEFT(a.state, 8) AS state_code,
+                       a.country AS country_code,
                        (c.closed = 0 AND c.test_account = 0
                          AND c.generate_invoices = 1) AS active_customer,
                        MIN(i.stop) AS first_tax_invoice,
@@ -174,7 +175,8 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 INNER JOIN apeiron_apeironcustomer c ON c.user_id = t.customer_id
                 LEFT JOIN apeiron_apeironaddress a ON a.id = c.service_address_id
                 GROUP BY c.user_id, c.customer_number, a.p_code,
-                         LEFT(TRIM(a.postal_code), 5), a.plus_four, a.state, a.country,
+                         LEFT(TRIM(a.postal_code), 5), a.plus_four,
+                         LEFT(a.state, 8), a.country,
                          c.closed, c.test_account, c.generate_invoices
                 HAVING SUM(t.total <> 0) > 0
                 ORDER BY c.user_id
