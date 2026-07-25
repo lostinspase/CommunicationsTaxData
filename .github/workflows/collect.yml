@@ -2,8 +2,6 @@ name: Collect and compare tax data
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "17 6 * * *"
 
 concurrency:
   group: communications-tax-data-collector

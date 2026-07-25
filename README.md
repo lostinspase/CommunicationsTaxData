@@ -135,9 +135,10 @@ This prevents a high-looking completion percentage built from unlike records.
 
 ## Scheduled operation
 
-`.github/workflows/collect.yml` runs collection and comparison daily when its environment
-secrets are configured. The runner must have network access to the MariaDB target and
-benchmark replica. For private IPs, use a self-hosted runner on the Apeiron network.
+The production schedule is installed on `cdrcost3` by `deploy/install-cron.sh`; see
+[docs/production-deployment.md](docs/production-deployment.md). The
+`.github/workflows/collect.yml` workflow is retained as a manual recovery/validation
+option. Its runner must have network access to the MariaDB target and benchmark replica.
 
 Required GitHub environment secrets:
 
