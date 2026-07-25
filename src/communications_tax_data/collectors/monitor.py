@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import timedelta
+
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from communications_tax_data.collectors.base import (
+    CollectionStats,
+    finish_run,
+    http_client,
+    record_error,
+    record_response,
+    start_run,
+)
+from communications_tax_data.models import Source, utcnow
+
+
+class SourceMonitor:
+    name = "source-monitor"
+
+    def collect(self, session: Session, *, force: bool = False) -> CollectionStats:
+        run = start_run(session, self.name)
+        stats = CollectionStats()
+        now = utcnow()
+        sources = list(
+            session.scalars(
+                select(Source)
+                .where(
+                    Source.active.is_(True),
+                    or_(
+                        Source.last_checked_at.is_(None),
+                        Source.last_checked_at < now - timedelta(days=1),
+                    ),
+                )
+                .order_by(Source.id)
+            )
+        )
+        if not force:
+            sources = [
+                source
+                for source in sources
+                if source.last_checked_at is None
+                or source.last_checked_at < now - timedelta(days=source.cadence_days)
+            ]
+        def fetch(client, source):
+            started = time.monotonic()
+            try:
+                response = client.get(source.url)
+                response.raise_for_status()
+                return source, started, response, None
+            except Exception as exc:
+                return source, started, None, exc
+
+        with http_client() as client, ThreadPoolExecutor(max_workers=8) as executor:
+            futures = [executor.submit(fetch, client, source) for source in sources]
+            for future in as_completed(futures):
+                source, started, response, error = future.result()
+                stats.sources += 1
+                if error is None:
+                    assert response is not None
+                    record_response(
+                        session, source=source, run=run, response=response, started=started
+                    )
+                    stats.seen += 1
+                else:  # one source must not stop the monitor
+                    record_error(session, source=source, run=run, error=error, started=started)
+                    stats.details.setdefault("errors", []).append(
+                        {"source": source.code, "error": str(error)}
+                    )
+        finish_run(run, stats, status="partial" if stats.details.get("errors") else "success")
+        return stats

@@ -1,0 +1,147 @@
+from __future__ import annotations
+
+from sqlalchemy.orm import Session
+
+from communications_tax_data.collectors.base import get_or_create_source
+
+STATE_DOR_URLS = {
+    "AL": "https://www.revenue.alabama.gov/sales-use/",
+    "AK": "https://tax.alaska.gov/",
+    "AZ": "https://azdor.gov/business/transaction-privilege-tax/tax-rate-table",
+    "AR": "https://www.dfa.arkansas.gov/office/taxes/excise-tax-administration/sales-use-tax/",
+    "CA": "https://www.cdtfa.ca.gov/taxes-and-fees/sales-use-tax-rates.htm",
+    "CO": "https://tax.colorado.gov/sales-tax",
+    "CT": "https://portal.ct.gov/drs/taxes/sales-and-use-tax",
+    "DE": "https://revenue.delaware.gov/business-tax-forms/gross-receipts-tax-forms/",
+    "DC": "https://otr.cfo.dc.gov/page/sales-and-use-tax",
+    "FL": "https://floridarevenue.com/taxes/taxesfees/Pages/sales_tax.aspx",
+    "GA": "https://dor.georgia.gov/taxes/sales-use-tax",
+    "HI": "https://tax.hawaii.gov/geninfo/get/",
+    "ID": "https://tax.idaho.gov/taxes/sales-use/",
+    "IL": "https://tax.illinois.gov/research/taxrates.html",
+    "IN": "https://www.in.gov/dor/business-tax/sales-tax/",
+    "IA": "https://revenue.iowa.gov/taxes/tax-guidance/sales-use-excise-tax",
+    "KS": "https://www.ksrevenue.gov/bustaxtypessales.html",
+    "KY": "https://revenue.ky.gov/Business/Sales-Use-Tax/Pages/default.aspx",
+    "LA": (
+        "https://revenue.louisiana.gov/tax-education-and-faqs/faqs/sales-tax/"
+        "what-is-the-sales-tax-rate-in-louisiana/"
+    ),
+    "ME": "https://www.maine.gov/revenue/taxes/sales-use-service-provider-tax",
+    "MD": (
+        "https://services.marylandcomptroller.gov/taxes/en/sales-and-use-tax"
+        "?id=kb_article_view&sysparm_article=KB0010107"
+    ),
+    "MA": "https://www.mass.gov/sales-and-use-tax",
+    "MI": "https://www.michigan.gov/taxes/business-taxes/sales-use-tax",
+    "MN": "https://www.revenue.state.mn.us/sales-and-use-tax",
+    "MS": "https://www.dor.ms.gov/business/sales-tax-rates",
+    "MO": "https://dor.mo.gov/taxation/business/tax-types/sales-use/",
+    "MT": "https://mtrevenue.gov/taxes/",
+    "NE": "https://revenue.nebraska.gov/businesses/sales-and-use-tax",
+    "NV": "https://tax.nv.gov/FAQs/Sales_Tax_Information___FAQ_s/",
+    "NH": "https://www.revenue.nh.gov/taxes-glance",
+    "NJ": "https://www.nj.gov/treasury/taxation/salesandusetax.shtml",
+    "NM": "https://www.tax.newmexico.gov/businesses/gross-receipts-tax/",
+    "NY": "https://www.tax.ny.gov/bus/st/stidx.htm",
+    "NC": "https://www.ncdor.gov/taxes-forms/sales-and-use-tax",
+    "ND": "https://www.tax.nd.gov/business/sales-and-use-tax",
+    "OH": "https://thefinder.tax.ohio.gov/streamlinesalestaxweb/default.aspx",
+    "OK": "https://oklahoma.gov/tax/businesses/sales-use-tax.html",
+    "OR": "https://www.oregon.gov/dor/programs/businesses/pages/default.aspx",
+    "PA": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/sales-use-and-hotel-occupancy-tax",
+    "RI": "https://tax.ri.gov/tax-sections/sales-excise-taxes/sales-use-tax",
+    "SC": "https://dor.sc.gov/tax/sales",
+    "SD": "https://dor.sd.gov/businesses/taxes/sales-use-tax/",
+    "TN": "https://www.tn.gov/revenue/taxes/sales-and-use-tax.html",
+    "TX": "https://comptroller.texas.gov/taxes/sales/",
+    "UT": "https://tax.utah.gov/sales",
+    "VT": "https://tax.vermont.gov/business-and-corp/sales-and-use-tax",
+    "VA": "https://www.tax.virginia.gov/retail-sales-and-use-tax",
+    "WA": "https://dor.wa.gov/taxes-rates/retail-sales-tax",
+    "WV": "https://tax.wv.gov/Business/SalesAndUseTax/Pages/SalesAndUseTax.aspx",
+    "WI": "https://www.revenue.wi.gov/Pages/FAQS/pcs-taxrates.aspx",
+    "WY": (
+        "https://revenue.wyo.gov/divisions/excise-tax/excise-tax-publications/"
+        "excise-tax-rate-charts"
+    ),
+}
+
+CORE_SOURCES = [
+    {
+        "code": "fcc-911-fee-reports",
+        "name": "Annual 911 fee reports",
+        "publisher": "Federal Communications Commission",
+        "source_type": "report_directory",
+        "url": "https://www.fcc.gov/general/911-fee-reports",
+        "tax_level": 1,
+        "cadence_days": 30,
+        "notes": (
+            "Annual state/territory 911 fee reports; not a substitute for current "
+            "local statutes."
+        ),
+    },
+    {
+        "code": "fcc-usf-quarterly-filings",
+        "name": "FCC contribution factors and quarterly filings",
+        "publisher": "Federal Communications Commission",
+        "source_type": "notice_directory",
+        "url": (
+            "https://www.fcc.gov/general/contribution-factor-quarterly-filings-"
+            "universal-service-fund-usf-management-support"
+        ),
+        "tax_level": 0,
+        "cadence_days": 14,
+    },
+    {
+        "code": "sst-taxability-matrices",
+        "name": "Streamlined Sales Tax state taxability matrices",
+        "publisher": "Streamlined Sales Tax Governing Board",
+        "source_type": "taxability_matrix",
+        "url": "https://sst.streamlinedsalestax.org/TM/query",
+        "tax_level": 1,
+        "cadence_days": 30,
+        "notes": "Sales/use tax only; communications-specific service mappings remain required.",
+    },
+    {
+        "code": "census-tiger-2025",
+        "name": "2025 TIGER/Line shapefiles",
+        "publisher": "U.S. Census Bureau",
+        "source_type": "boundary_directory",
+        "url": "https://www2.census.gov/geo/tiger/TIGER2025/",
+        "tax_level": 3,
+        "cadence_days": 90,
+        "authoritative": False,
+        "notes": "Legal/statistical boundaries as of 2025-01-01; not USPS ZIP+4 or 911 districts.",
+    },
+]
+
+
+def seed_catalog(session: Session) -> tuple[int, int]:
+    inserted = 0
+    updated = 0
+    for item in CORE_SOURCES:
+        _, created = get_or_create_source(session, parser=None, **item)
+        inserted += int(created)
+        updated += int(not created)
+    for state, url in STATE_DOR_URLS.items():
+        _, created = get_or_create_source(
+            session,
+            code=f"state-dor-{state.lower()}",
+            name=f"{state} official sales/use tax source",
+            publisher=f"{state} state tax authority",
+            source_type="state_tax_landing",
+            url=url,
+            tax_level=1,
+            state_code=state,
+            parser=None,
+            cadence_days=30,
+            authoritative=True,
+            notes=(
+                "Discovery/monitoring record. A state-specific parser is required for normalized "
+                "non-SST rates and communications taxability."
+            ),
+        )
+        inserted += int(created)
+        updated += int(not created)
+    return inserted, updated

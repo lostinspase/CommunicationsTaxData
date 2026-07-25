@@ -1,0 +1,45 @@
+name: Collect and compare tax data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
+
+concurrency:
+  group: communications-tax-data-collector
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: self-hosted
+    timeout-minutes: 120
+    environment: production
+    env:
+      CTD_DATABASE_URL: ""
+      CTD_DB_HOST: ${{ secrets.CTD_DB_HOST }}
+      CTD_DB_PORT: "3306"
+      CTD_DB_NAME: ${{ secrets.CTD_DB_NAME }}
+      CTD_DB_USER: ${{ secrets.CTD_DB_USER }}
+      CTD_DB_PASSWORD: ${{ secrets.CTD_DB_PASSWORD }}
+      CTD_AVALARA_HOST: ${{ secrets.CTD_AVALARA_HOST }}
+      CTD_AVALARA_PORT: "3306"
+      CTD_AVALARA_NAME: ${{ secrets.CTD_AVALARA_NAME }}
+      CTD_AVALARA_USER: ${{ secrets.CTD_AVALARA_USER }}
+      CTD_AVALARA_PASSWORD: ${{ secrets.CTD_AVALARA_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ctd init
+      - run: uv run ctd seed-catalog
+      - run: uv run ctd collect --collector all
+      - run: uv run ctd benchmark-sync
+      - run: uv run ctd compare
+      - run: uv run ctd report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-exceptions-${{ github.run_id }}
+          path: reports/
+          retention-days: 30
