@@ -76,8 +76,8 @@ def _signature(
         [
             str(tax_type),
             str(tax_level),
-            tax_category or "",
-            tax_description or "",
+            (tax_category or "").strip().casefold(),
+            (tax_description or "").strip().casefold(),
         ]
     )
     return hashlib.sha256(payload.encode()).hexdigest()

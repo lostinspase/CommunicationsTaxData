@@ -67,8 +67,8 @@ def _signature(row: dict) -> str:
         [
             str(row["tax_type"]),
             str(row["tax_level"]),
-            row.get("tax_category") or "",
-            row.get("tax_description") or "",
+            (row.get("tax_category") or "").strip().casefold(),
+            (row.get("tax_description") or "").strip().casefold(),
         ]
     )
     return hashlib.sha256(payload.encode()).hexdigest()
@@ -197,7 +197,18 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 ORDER BY tax_type, tax_level, tax_category, tax_description
                 """
             )
-            existing = set(session.scalars(select(TaxTypeCrosswalk.benchmark_signature)))
+            crosswalk_rows = list(session.scalars(select(TaxTypeCrosswalk)))
+            for item in crosswalk_rows:
+                item.benchmark_signature = _signature(
+                    {
+                        "tax_type": item.benchmark_tax_type,
+                        "tax_level": item.benchmark_tax_level,
+                        "tax_category": item.benchmark_tax_category,
+                        "tax_description": item.benchmark_tax_description,
+                    }
+                )
+            session.flush()
+            existing = {item.benchmark_signature for item in crosswalk_rows}
             for raw in connection.execute(type_sql).mappings():
                 row = dict(raw)
                 signature = _signature(row)
