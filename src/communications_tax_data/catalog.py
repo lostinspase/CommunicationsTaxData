@@ -3,66 +3,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from communications_tax_data.collectors.base import get_or_create_source
-
-STATE_DOR_URLS = {
-    "AL": "https://www.revenue.alabama.gov/sales-use/",
-    "AK": "https://tax.alaska.gov/",
-    "AZ": "https://azdor.gov/business/transaction-privilege-tax/tax-rate-table",
-    "AR": "https://www.dfa.arkansas.gov/office/taxes/excise-tax-administration/sales-use-tax/",
-    "CA": "https://www.cdtfa.ca.gov/taxes-and-fees/sales-use-tax-rates.htm",
-    "CO": "https://tax.colorado.gov/sales-tax",
-    "CT": "https://portal.ct.gov/drs/sales-tax/tax-information",
-    "DE": "https://revenue.delaware.gov/business-tax-forms/gross-receipts-tax-forms/",
-    "DC": "https://otr.cfo.dc.gov/page/sales-use-tax",
-    "FL": "https://floridarevenue.com/taxes/taxesfees/Pages/sales_tax.aspx",
-    "GA": "https://dor.georgia.gov/taxes/sales-use-tax",
-    "HI": "https://tax.hawaii.gov/geninfo/get/",
-    "ID": "https://tax.idaho.gov/taxes/sales-use/",
-    "IL": "https://tax.illinois.gov/research/taxrates.html",
-    "IN": "https://www.in.gov/dor/business-tax/sales-tax/",
-    "IA": "https://revenue.iowa.gov/taxes/tax-guidance/sales-use-excise-tax",
-    "KS": "https://www.ksrevenue.gov/bustaxtypessales.html",
-    "KY": "https://revenue.ky.gov/Business/Sales-Use-Tax/Pages/default.aspx",
-    "LA": (
-        "https://revenue.louisiana.gov/tax-education-and-faqs/faqs/sales-tax/"
-        "what-is-the-sales-tax-rate-in-louisiana/"
-    ),
-    "ME": "https://www.maine.gov/revenue/taxes/sales-use-service-provider-tax",
-    "MD": (
-        "https://services.marylandcomptroller.gov/taxes/en/sales-and-use-tax"
-        "?id=kb_article_view&sysparm_article=KB0010107"
-    ),
-    "MA": "https://www.mass.gov/sales-and-use-tax",
-    "MI": "https://www.michigan.gov/taxes/business-taxes/sales-use-tax",
-    "MN": "https://www.revenue.state.mn.us/sales-and-use-tax",
-    "MS": "https://www.dor.ms.gov/business/sales-tax-rates",
-    "MO": "https://dor.mo.gov/taxation/business/tax-types/sales-use/",
-    "MT": "https://mtrevenue.gov/taxes/",
-    "NE": "https://revenue.nebraska.gov/businesses/sales-and-use-tax",
-    "NV": "https://tax.nv.gov/FAQs/Sales_Tax_Information___FAQ_s/",
-    "NH": "https://www.revenue.nh.gov/taxes-glance",
-    "NJ": "https://www.nj.gov/treasury/taxation/salesandusetax.shtml",
-    "NM": "https://www.tax.newmexico.gov/businesses/gross-receipts-tax/",
-    "NY": "https://www.tax.ny.gov/bus/st/stidx.htm",
-    "NC": "https://www.ncdor.gov/taxes-forms/sales-and-use-tax",
-    "ND": "https://www.tax.nd.gov/business/sales-and-use-tax",
-    "OH": "https://thefinder.tax.ohio.gov/streamlinesalestaxweb/default.aspx",
-    "OK": "https://oklahoma.gov/tax/businesses/sales-use-tax.html",
-    "OR": "https://www.oregon.gov/dor/programs/businesses/pages/default.aspx",
-    "PA": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/sales-use-and-hotel-occupancy-tax",
-    "RI": "https://tax.ri.gov/tax-sections/sales-excise-taxes/sales-use-tax",
-    "SC": "https://dor.sc.gov/tax/sales",
-    "SD": "https://dor.sd.gov/businesses/taxes/sales-use-tax/",
-    "TN": "https://www.tn.gov/revenue/taxes/sales-and-use-tax.html",
-    "TX": "https://comptroller.texas.gov/taxes/sales/",
-    "UT": "https://tax.utah.gov/sales",
-    "VT": "https://tax.vermont.gov/business-and-corp/sales-and-use-tax",
-    "VA": "https://www.tax.virginia.gov/retail-sales-and-use-tax",
-    "WA": "https://dor.wa.gov/taxes-rates/retail-sales-tax",
-    "WV": "https://tax.wv.gov/Business/SalesAndUseTax/Pages/SalesAndUseTax.aspx",
-    "WI": "https://www.revenue.wi.gov/Pages/FAQS/pcs-taxrates.aspx",
-    "WY": "https://excise-tax-div.wyo.gov/salesuselodging-tax/tax-rates",
-}
+from communications_tax_data.state_authorities import STATE_AUTHORITIES
 
 CORE_SOURCES = [
     {
@@ -208,6 +149,16 @@ CORE_SOURCES = [
         "notes": "Sales/use tax only; communications-specific service mappings remain required.",
     },
     {
+        "code": "sst-state-detail",
+        "name": "Streamlined Sales Tax member state status",
+        "publisher": "Streamlined Sales Tax Governing Board",
+        "source_type": "state_program_directory",
+        "url": "https://www.streamlinedsalestax.org/Shared-Pages/State-Detail",
+        "tax_level": 1,
+        "cadence_days": 30,
+        "notes": "Official full-member and associate-member status.",
+    },
+    {
         "code": "census-tiger-2025",
         "name": "2025 TIGER/Line shapefiles",
         "publisher": "U.S. Census Bureau",
@@ -220,6 +171,94 @@ CORE_SOURCES = [
     },
 ]
 
+STATE_RULE_SOURCES = [
+    {
+        "code": "state-rule-ca-cpuc-surcharge",
+        "name": "California telecommunications surcharge rates",
+        "publisher": "California Public Utilities Commission",
+        "source_type": "state_puc_rate",
+        "url": (
+            "https://www.cpuc.ca.gov/industries-and-topics/internet-and-phone/"
+            "telecommunications-surcharges-and-user-fees/surcharge-rates"
+        ),
+        "tax_level": 1,
+        "state_code": "CA",
+        "parser": "state-rules",
+        "cadence_days": 7,
+        "notes": "Effective-dated flat Public Purpose Program surcharge and allocations.",
+    },
+    {
+        "code": "state-rule-ca-cpuc-user-fee",
+        "name": "California telecommunications user fee rates",
+        "publisher": "California Public Utilities Commission",
+        "source_type": "state_puc_rate",
+        "url": "https://www.cpuc.ca.gov/userfeerates",
+        "tax_level": 1,
+        "state_code": "CA",
+        "parser": "state-rules",
+        "cadence_days": 7,
+        "notes": "Effective-dated percentage of gross intrastate telecommunications revenue.",
+    },
+    {
+        "code": "state-rule-ca-cdtfa-mobile",
+        "name": "California mobile phone and service-plan sales/use tax guidance",
+        "publisher": "California Department of Tax and Fee Administration",
+        "source_type": "state_revenue_taxability",
+        "url": "https://www.cdtfa.ca.gov/industry/mobile-phone-vendors/industry-topics.htm",
+        "tax_level": 1,
+        "state_code": "CA",
+        "parser": "state-rules",
+        "cadence_days": 14,
+        "notes": "Product treatment for devices, service/data plans, and prepaid MTS.",
+    },
+    {
+        "code": "state-rule-pa-telecom-grt",
+        "name": "Pennsylvania telecommunications gross receipts tax",
+        "publisher": "Pennsylvania Department of Revenue",
+        "source_type": "state_revenue_rate",
+        "url": (
+            "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/"
+            "corporation-taxes/gross-receipts-tax"
+        ),
+        "tax_level": 1,
+        "state_code": "PA",
+        "parser": "state-rules",
+        "cadence_days": 14,
+        "notes": "Telecommunications 50-mill rate, sourcing summary, return, and due date.",
+    },
+    {
+        "code": "state-rule-pa-sales-use-rate",
+        "name": "Pennsylvania sales/use tax rates",
+        "publisher": "Pennsylvania Department of Revenue",
+        "source_type": "state_revenue_rate",
+        "url": (
+            "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/"
+            "sales-use-and-hotel-occupancy-tax"
+        ),
+        "tax_level": 1,
+        "state_code": "PA",
+        "parser": "state-rules",
+        "cadence_days": 14,
+        "notes": "State rate and Philadelphia/Allegheny local additions.",
+    },
+    {
+        "code": "state-rule-pa-telecom-taxability",
+        "name": "Pennsylvania Sales Tax Bulletin 2005-03 — telecommunications",
+        "publisher": "Pennsylvania Department of Revenue",
+        "source_type": "state_revenue_taxability",
+        "url": (
+            "https://www.pa.gov/content/dam/copapwp-pagov/en/revenue/documents/"
+            "taxlawpoliciesbulletinsnotices/taxbulletins/sut/documents/"
+            "st_bulletin_2005-03.pdf"
+        ),
+        "tax_level": 1,
+        "state_code": "PA",
+        "parser": "state-rules",
+        "cadence_days": 30,
+        "notes": "Enhanced/non-enhanced telecommunications classifications and sourcing.",
+    },
+]
+
 
 def seed_catalog(session: Session) -> tuple[int, int]:
     inserted = 0
@@ -228,22 +267,47 @@ def seed_catalog(session: Session) -> tuple[int, int]:
         _, created = get_or_create_source(session, parser=None, **item)
         inserted += int(created)
         updated += int(not created)
-    for state, url in STATE_DOR_URLS.items():
+    for item in STATE_RULE_SOURCES:
+        _, created = get_or_create_source(session, **item)
+        inserted += int(created)
+        updated += int(not created)
+    for profile in STATE_AUTHORITIES:
+        state = profile.state_code
+        _, created = get_or_create_source(
+            session,
+            code=f"state-puc-{state.lower()}",
+            name=profile.commission_name,
+            publisher=profile.commission_name,
+            source_type="state_communications_regulator",
+            url=profile.commission_url,
+            tax_level=1,
+            state_code=state,
+            parser=None,
+            cadence_days=14,
+            authoritative=True,
+            notes=(
+                "Official regulator landing page. Health monitoring does not imply "
+                "that its orders, dockets, tariffs, or surcharge rules are normalized."
+            ),
+        )
+        inserted += int(created)
+        updated += int(not created)
         _, created = get_or_create_source(
             session,
             code=f"state-dor-{state.lower()}",
-            name=f"{state} official sales/use tax source",
-            publisher=f"{state} state tax authority",
+            name=profile.revenue_name,
+            publisher=profile.revenue_name,
             source_type="state_tax_landing",
-            url=url,
+            url=profile.revenue_url,
             tax_level=1,
             state_code=state,
             parser=None,
             cadence_days=30,
             authoritative=True,
             notes=(
-                "Discovery/monitoring record. A state-specific parser is required for normalized "
-                "non-SST rates and communications taxability."
+                "Official revenue/tax landing page. Health monitoring does not imply "
+                "that communications taxability, rates, sourcing, forms, or exemptions "
+                "are normalized."
             ),
         )
         inserted += int(created)

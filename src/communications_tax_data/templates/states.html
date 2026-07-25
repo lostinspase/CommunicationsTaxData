@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>50-State Authority Register · Communications Tax Data</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink:#132521; --muted:#60716c; --line:#d9e2df; --paper:#f5f7f2;
+      --card:#fff; --green:#0d6753; --green-soft:#e5efeb; --gold:#8a6208;
+      --gold-soft:#fff2cc; --red:#a33a2b; --red-soft:#f7e6df; --blue:#315f84;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; font-family:Inter, ui-sans-serif, system-ui, sans-serif;
+      color:var(--ink); background:var(--paper);
+    }
+    a { color:var(--green); text-underline-offset:2px; }
+    header {
+      padding:28px max(24px, calc((100vw - 1320px)/2));
+      background:var(--ink); color:white;
+    }
+    header a { color:#d6e7e1; font-size:14px; }
+    header h1 { margin:18px 0 5px; font-size:clamp(27px,4vw,42px); letter-spacing:-.035em; }
+    header p { max-width:830px; margin:0; color:#b9cbc5; line-height:1.55; }
+    main { max-width:1320px; margin:0 auto; padding:24px 24px 60px; }
+    .summary {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+      gap:12px; margin-bottom:18px;
+    }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; }
+    .metric { padding:16px; }
+    .metric b { display:block; font-size:27px; letter-spacing:-.03em; }
+    .metric span { color:var(--muted); font-size:12px; }
+    .explain {
+      display:grid; grid-template-columns:1fr 1fr; gap:18px;
+      padding:19px; margin-bottom:18px;
+    }
+    h2 { margin:0 0 9px; font-size:17px; }
+    .explain p, .explain li, .note { color:var(--muted); font-size:13px; line-height:1.55; }
+    .explain ul { margin:8px 0 0; padding-left:19px; }
+    .controls {
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:14px;
+      position:sticky; top:0; z-index:2; box-shadow:0 8px 18px rgba(19,37,33,.04);
+    }
+    input, select {
+      min-height:40px; border:1px solid var(--line); border-radius:8px;
+      background:white; color:var(--ink); padding:8px 11px; font:inherit;
+    }
+    input { flex:1; min-width:220px; }
+    .result-count { margin-left:auto; color:var(--muted); font-size:13px; }
+    .table-wrap { overflow:auto; }
+    table { border-collapse:collapse; width:100%; min-width:1040px; font-size:13px; }
+    th,td { padding:12px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th {
+      color:var(--muted); font-weight:650; font-size:11px; text-transform:uppercase;
+      letter-spacing:.04em; background:#fbfcfa;
+    }
+    tr:last-child td { border-bottom:0; }
+    td strong { display:block; margin-bottom:3px; }
+    .sub { display:block; color:var(--muted); font-size:11px; line-height:1.4; margin-top:3px; }
+    .pill {
+      display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px;
+      font-weight:650; white-space:nowrap; background:var(--green-soft); color:var(--green);
+    }
+    .partial,.changed { background:var(--gold-soft); color:var(--gold); }
+    .not_pulled,.not_checked,.not_cataloged,.failed {
+      background:var(--red-soft); color:var(--red);
+    }
+    .associate { background:#e7edf5; color:var(--blue); }
+    .nonmember { background:#edf0ee; color:var(--muted); }
+    details { margin-top:7px; }
+    summary { color:var(--green); cursor:pointer; font-size:12px; }
+    .source-list { margin:8px 0 0; padding:0; list-style:none; }
+    .source-list li { padding:7px 0; border-top:1px solid var(--line); }
+    .empty { display:none; padding:28px; text-align:center; color:var(--muted); }
+    @media(max-width:760px) {
+      .explain { grid-template-columns:1fr; }
+      .controls { position:static; }
+      .result-count { width:100%; margin:0; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <a href="/">← Main dashboard</a>
+  <h1>50-State Authority Register</h1>
+  <p>Official communications regulator and revenue authority coverage. Site health,
+    normalized rules, and taxability review are deliberately reported as separate things.</p>
+</header>
+<main>
+  <section class="summary">
+    <div class="card metric"><b>{{ summary.states }}</b><span>states in register</span></div>
+    <div class="card metric"><b>{{ summary.commission_sites_cataloged }}</b><span>PUC / PSC sites cataloged</span></div>
+    <div class="card metric"><b>{{ summary.revenue_sites_cataloged }}</b><span>revenue sites cataloged</span></div>
+    <div class="card metric"><b>{{ summary.puc_rules_started }}</b><span>states with normalized PUC rules</span></div>
+    <div class="card metric"><b>{{ summary.revenue_rules_started }}</b><span>states with normalized revenue rules</span></div>
+    <div class="card metric"><b>{{ summary.sst_participants }}</b><span>SST participants (23 full + TN)</span></div>
+  </section>
+
+  <section class="card explain">
+    <div>
+      <h2>What “pulled” means</h2>
+      <p>A healthy site check proves only that an official page is reachable. A rule is
+        “pulled” only after a state-specific parser has produced a normalized fact with an
+        effective date, tax base or taxability treatment, and legal/source citation.
+        “Partial” means work has started; it does not mean the state is calculation-ready.</p>
+    </div>
+    <div>
+      <h2>What the agent checks</h2>
+      <details open>
+        <summary>PUC / PSC communications track</summary>
+        <ul>{% for item in monitoring_scope.commission %}<li>{{ item }}</li>{% endfor %}</ul>
+      </details>
+      <details>
+        <summary>Revenue / sales-use track</summary>
+        <ul>{% for item in monitoring_scope.revenue %}<li>{{ item }}</li>{% endfor %}</ul>
+      </details>
+    </div>
+  </section>
+
+  <section class="card controls" aria-label="State filters">
+    <input id="state-search" type="search" placeholder="Search state or authority…" aria-label="Search states">
+    <select id="rule-filter" aria-label="Filter by rule coverage">
+      <option value="all">All rule coverage</option>
+      <option value="started">Any normalized rules</option>
+      <option value="not-started">No normalized rules</option>
+    </select>
+    <select id="sst-filter" aria-label="Filter by SST membership">
+      <option value="all">All SST statuses</option>
+      <option value="full">SST full member</option>
+      <option value="associate">SST associate</option>
+      <option value="nonmember">SST nonmember</option>
+    </select>
+    <span class="result-count"><span id="visible-count">{{ summary.states }}</span> states shown</span>
+  </section>
+
+  <section class="card table-wrap" style="margin-top:12px">
+    <table>
+      <thead>
+        <tr>
+          <th>State</th>
+          <th>PUC / PSC authority</th>
+          <th>PUC rules pulled</th>
+          <th>Revenue authority</th>
+          <th>Revenue / taxability pulled</th>
+          <th>Sales-tax framework</th>
+          <th>SST</th>
+        </tr>
+      </thead>
+      <tbody id="state-rows">
+      {% for row in states %}
+        <tr data-search="{{ row.state_code }} {{ row.state_name }} {{ row.commission.name }} {{ row.revenue.name }}"
+            data-rules="{{ 'started' if row.commission.rules or row.revenue.rules else 'not-started' }}"
+            data-sst="{{ row.sst_membership }}">
+          <td><strong>{{ row.state_code }}</strong><span class="sub">{{ row.state_name }}</span></td>
+          <td>
+            <a href="{{ row.commission.url }}" target="_blank" rel="noopener">{{ row.commission.name }}</a>
+            <span class="sub">site: <span class="pill {{ row.commission.health.status }}">{{ row.commission.health.status.replace("_"," ") }}</span></span>
+          </td>
+          <td>
+            <span class="pill {{ row.commission.status }}">{{ row.commission.status.replace("_"," ") }}</span>
+            <span class="sub">{{ row.commission.rules }} rule concepts · {{ row.commission.rule_sources }} parsed sources</span>
+            {% if row.puc_sources %}
+            <details>
+              <summary>{{ row.puc_sources|length }} parsed source{{ "" if row.puc_sources|length == 1 else "s" }}</summary>
+              <ul class="source-list">
+                {% for source in row.puc_sources %}
+                <li>
+                  <a href="{{ source.url }}" target="_blank" rel="noopener">{{ source.name }}</a>
+                  <span class="sub">{{ source.rules }} concepts / {{ source.versions }} effective versions · {{ source.health }}</span>
+                </li>
+                {% endfor %}
+              </ul>
+            </details>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ row.revenue.url }}" target="_blank" rel="noopener">{{ row.revenue.name }}</a>
+            <span class="sub">site: <span class="pill {{ row.revenue.health.status }}">{{ row.revenue.health.status.replace("_"," ") }}</span></span>
+          </td>
+          <td>
+            <span class="pill {{ row.revenue.status }}">{{ row.revenue.status.replace("_"," ") }}</span>
+            <span class="sub">{{ row.revenue.rules }} rule concepts · {{ row.revenue.rule_sources }} parsed sources</span>
+            {% if row.revenue_sources %}
+            <details>
+              <summary>{{ row.revenue_sources|length }} parsed source{{ "" if row.revenue_sources|length == 1 else "s" }}</summary>
+              <ul class="source-list">
+                {% for source in row.revenue_sources %}
+                <li>
+                  <a href="{{ source.url }}" target="_blank" rel="noopener">{{ source.name }}</a>
+                  <span class="sub">{{ source.rules }} concepts / {{ source.versions }} effective versions · {{ source.health }}</span>
+                </li>
+                {% endfor %}
+              </ul>
+            </details>
+            {% endif %}
+          </td>
+          <td>
+            <strong>{{ row.sales_tax_framework.replace("_"," ") }}</strong>
+            <span class="sub">{{ row.framework_note }}</span>
+          </td>
+          <td><span class="pill {{ row.sst_membership }}">{{ row.sst_membership }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div id="empty" class="empty">No states match these filters.</div>
+  </section>
+  <p class="note">District of Columbia and territories will be tracked separately from this
+    constitutional 50-state register. SST matrices support sales/use classifications for
+    participating states, but do not replace communications surcharges, PUC orders, 911
+    districts, or product-to-rule mapping.</p>
+</main>
+<script>
+  const search = document.getElementById("state-search");
+  const ruleFilter = document.getElementById("rule-filter");
+  const sstFilter = document.getElementById("sst-filter");
+  const rows = [...document.querySelectorAll("#state-rows tr")];
+  const count = document.getElementById("visible-count");
+  const empty = document.getElementById("empty");
+  function applyFilters() {
+    const query = search.value.trim().toLowerCase();
+    let visible = 0;
+    for (const row of rows) {
+      const matchesSearch = row.dataset.search.toLowerCase().includes(query);
+      const matchesRules = ruleFilter.value === "all" || row.dataset.rules === ruleFilter.value;
+      const matchesSst = sstFilter.value === "all" || row.dataset.sst === sstFilter.value;
+      const show = matchesSearch && matchesRules && matchesSst;
+      row.hidden = !show;
+      visible += Number(show);
+    }
+    count.textContent = visible;
+    empty.style.display = visible ? "none" : "block";
+  }
+  search.addEventListener("input", applyFilters);
+  ruleFilter.addEventListener("change", applyFilters);
+  sstFilter.addEventListener("change", applyFilters);
+</script>
+</body>
+</html>

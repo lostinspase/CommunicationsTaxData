@@ -17,7 +17,8 @@ The first release intentionally reports what public data cannot reproduce.
 | IRS communications excise | Federal 3% current operational rule | `federal` | Bundled/long-distance treatment requires the recorded base rule |
 | SST rate files | 24 member states; state/county/city/special district sales/use components | `sst` | Does not establish whether a communications product is taxable |
 | Census ZCTA relationships | Nationwide ZCTA-to-county and ZCTA-to-place intersections | `census` | Statistical geography, not USPS ZIP+4 or rooftop assignment |
-| State DOR catalog | 50 official state landing pages | `monitor` | Non-SST state parsers remain explicit exceptions |
+| State authority register | 50 PUC/PSC and 50 revenue authority sites | `monitor` | Site health is not counted as rule coverage |
+| CA/PA state rules | CPUC rates, CDTFA mobile guidance, PA GRT/rate/taxability | `state` | First proof states; both remain partial |
 | Avalara benchmark | Supplied address/rate tables from read-only replica | `benchmark-sync` | Used only for completeness comparisons |
 
 All facts use half-open business semantics represented as inclusive `effective_from` and
@@ -33,6 +34,7 @@ uv sync --extra dev
 uv run ctd init
 uv run ctd seed-catalog
 uv run ctd collect --collector federal
+uv run ctd collect --collector state
 uv run ctd collect --collector sst
 uv run ctd collect --collector census
 uv run ctd serve
@@ -41,6 +43,7 @@ uv run ctd serve
 Open <http://127.0.0.1:8080>. JSON endpoints are available at:
 
 - `/api/health`
+- `/api/state-authorities`
 - `/api/coverage`
 - `/api/source-health?failed_only=true`
 - `/api/rates?state=WA&tax_family=sales_and_use`

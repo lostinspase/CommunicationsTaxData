@@ -30,6 +30,7 @@ case "$MODE" in
   daily)
     "$CTD" seed-catalog
     "$CTD" collect --collector federal
+    "$CTD" collect --collector state
     "$CTD" collect --collector monitor
     "$CTD" benchmark-sync
     "$CTD" seed-filing-map

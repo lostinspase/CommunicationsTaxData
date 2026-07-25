@@ -31,6 +31,7 @@ from communications_tax_data.models import (
     TaxFilingMap,
     TaxTypeCrosswalk,
 )
+from communications_tax_data.state_authorities import STATE_AUTHORITIES
 from communications_tax_data.taxonomy import FUSF_PUBLIC_SOURCES
 
 PACKAGE_DIR = Path(__file__).parent
@@ -193,6 +194,182 @@ def dashboard_data(session: Session) -> dict:
     }
 
 
+def state_authority_data(session: Session) -> dict:
+    """Build a 50-state register without treating a healthy URL as rule coverage."""
+    sources = list(
+        session.scalars(
+            select(Source)
+            .where(Source.state_code.is_not(None))
+            .order_by(Source.state_code, Source.code)
+        )
+    )
+    sources_by_state: dict[str, list[Source]] = {}
+    for source in sources:
+        sources_by_state.setdefault(source.state_code or "", []).append(source)
+
+    latest_check_ids = select(func.max(SourceCheck.id)).group_by(SourceCheck.source_id)
+    checks_by_source = {
+        check.source_id: check
+        for check in session.scalars(
+            select(SourceCheck).where(SourceCheck.id.in_(latest_check_ids))
+        )
+    }
+    fact_rows = session.execute(
+        select(
+            TaxFact.source_id,
+            func.count(TaxFact.id),
+            func.count(func.distinct(TaxFact.natural_key)),
+        ).group_by(TaxFact.source_id)
+    )
+    fact_counts = {
+        source_id: {"versions": versions, "rules": rules}
+        for source_id, versions, rules in fact_rows
+    }
+
+    def source_health_value(source: Source | None) -> dict:
+        if source is None:
+            return {"status": "not_cataloged", "checked_at": None, "error": None}
+        check = checks_by_source.get(source.id)
+        if check is None:
+            status = "not_checked"
+        elif check.error:
+            status = "failed"
+        elif check.changed:
+            status = "changed"
+        else:
+            status = "healthy"
+        return {
+            "status": status,
+            "checked_at": check.checked_at if check else None,
+            "status_code": check.status_code if check else None,
+            "changed": check.changed if check else None,
+            "error": check.error if check else None,
+        }
+
+    def rule_status(rule_count: int) -> str:
+        return "partial" if rule_count else "not_pulled"
+
+    rows = []
+    for profile in STATE_AUTHORITIES:
+        state_sources = sources_by_state.get(profile.state_code, [])
+        puc_home = next(
+            (
+                item
+                for item in state_sources
+                if item.code == f"state-puc-{profile.state_code.lower()}"
+            ),
+            None,
+        )
+        revenue_home = next(
+            (
+                item
+                for item in state_sources
+                if item.code == f"state-dor-{profile.state_code.lower()}"
+            ),
+            None,
+        )
+        puc_rule_sources = [
+            item for item in state_sources if item.source_type.startswith("state_puc_")
+        ]
+        revenue_rule_sources = [
+            item for item in state_sources if item.source_type.startswith("state_revenue_")
+        ]
+        puc_rule_count = sum(
+            fact_counts.get(item.id, {}).get("rules", 0) for item in puc_rule_sources
+        )
+        revenue_rule_count = sum(
+            fact_counts.get(item.id, {}).get("rules", 0) for item in revenue_rule_sources
+        )
+        sales_rule_count = sum(
+            fact_counts.get(item.id, {}).get("rules", 0)
+            for item in revenue_rule_sources
+            if item.source_type in {"state_revenue_rate", "state_revenue_taxability"}
+        )
+        normalized_sources = []
+        for source in puc_rule_sources + revenue_rule_sources:
+            counts = fact_counts.get(source.id, {"rules": 0, "versions": 0})
+            health = source_health_value(source)
+            normalized_sources.append(
+                {
+                    "code": source.code,
+                    "name": source.name,
+                    "type": source.source_type,
+                    "url": source.url,
+                    "rules": counts["rules"],
+                    "versions": counts["versions"],
+                    "health": health["status"],
+                    "checked_at": health["checked_at"],
+                    "error": health["error"],
+                }
+            )
+        rows.append(
+            {
+                "state_code": profile.state_code,
+                "state_name": profile.state_name,
+                "sst_membership": profile.sst_membership,
+                "sales_tax_framework": profile.sales_tax_framework,
+                "framework_note": profile.framework_note,
+                "commission": {
+                    "name": profile.commission_name,
+                    "url": profile.commission_url,
+                    "cataloged": puc_home is not None,
+                    "health": source_health_value(puc_home),
+                    "rule_sources": len(puc_rule_sources),
+                    "rules": puc_rule_count,
+                    "status": rule_status(puc_rule_count),
+                },
+                "revenue": {
+                    "name": profile.revenue_name,
+                    "url": profile.revenue_url,
+                    "cataloged": revenue_home is not None,
+                    "health": source_health_value(revenue_home),
+                    "rule_sources": len(revenue_rule_sources),
+                    "rules": revenue_rule_count,
+                    "sales_rules": sales_rule_count,
+                    "status": rule_status(revenue_rule_count),
+                },
+                "puc_sources": [
+                    item
+                    for item in normalized_sources
+                    if item["type"].startswith("state_puc_")
+                ],
+                "revenue_sources": [
+                    item
+                    for item in normalized_sources
+                    if item["type"].startswith("state_revenue_")
+                ],
+                "normalized_sources": normalized_sources,
+            }
+        )
+
+    return {
+        "summary": {
+            "states": len(rows),
+            "commission_sites_cataloged": sum(row["commission"]["cataloged"] for row in rows),
+            "revenue_sites_cataloged": sum(row["revenue"]["cataloged"] for row in rows),
+            "puc_rules_started": sum(row["commission"]["rules"] > 0 for row in rows),
+            "revenue_rules_started": sum(row["revenue"]["rules"] > 0 for row in rows),
+            "sst_participants": sum(row["sst_membership"] != "nonmember" for row in rows),
+        },
+        "monitoring_scope": {
+            "commission": [
+                "telecommunications surcharge and assessment rate pages",
+                "universal-service, relay, 911, and public-purpose program orders",
+                "telecommunications dockets, tariffs, notices, and legislative changes",
+                "provider remittance instructions, returns, exemptions, and due dates",
+            ],
+            "revenue": [
+                "communications service definitions and product taxability",
+                "sales/use, gross-receipts, privilege, and communications-service rates",
+                "primary-place-of-use and other sourcing rules",
+                "resale, government, Lifeline, and other exemptions",
+                "returns, filing portals, payment recipients, bulletins, and rulings",
+            ],
+        },
+        "states": rows,
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(
@@ -200,6 +377,22 @@ def dashboard(request: Request, session: Session = Depends(get_session)):
         name="dashboard.html",
         context=dashboard_data(session),
     )
+
+
+@app.get("/states", response_class=HTMLResponse)
+def state_authorities_page(
+    request: Request, session: Session = Depends(get_session)
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="states.html",
+        context=state_authority_data(session),
+    )
+
+
+@app.get("/api/state-authorities")
+def state_authorities(session: Session = Depends(get_session)):
+    return state_authority_data(session)
 
 
 @app.get("/api/coverage")

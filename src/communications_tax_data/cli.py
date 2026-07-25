@@ -15,6 +15,7 @@ from communications_tax_data.collectors import (
     FederalCollector,
     SourceMonitor,
     SstRateCollector,
+    StateRuleCollector,
 )
 from communications_tax_data.comparison import compare_coverage, write_exception_report
 from communications_tax_data.config import get_settings
@@ -51,7 +52,7 @@ def seed_source_catalog() -> None:
 @app.command("collect")
 def collect(
     collector: str = typer.Option(
-        "all", help="all, federal, sst, census, or monitor"
+        "all", help="all, federal, state, sst, census, or monitor"
     ),
     force_monitor: bool = typer.Option(False, help="Check all monitored sources now."),
 ) -> None:
@@ -60,6 +61,7 @@ def collect(
     create_schema()
     choices = {
         "federal": FederalCollector,
+        "state": StateRuleCollector,
         "sst": SstRateCollector,
         "census": CensusRelationshipCollector,
         "monitor": SourceMonitor,

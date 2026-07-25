@@ -26,8 +26,8 @@ Then open <http://127.0.0.1:8091>.
 
 The server clock is UTC:
 
-- Daily 06:17: source catalog, federal facts, due-source monitoring, benchmark refresh,
-  comparison, and exception report.
+- Daily 06:17: source catalog, federal and validated state facts, due-source monitoring,
+  benchmark refresh, comparison, and exception report.
 - Sunday 07:37: SST state/local sales and use files, comparison, and report.
 - First day of each month 08:57: Census relationships, comparison, and report.
 - Every five minutes and at reboot: ensure the loopback dashboard is running.
