@@ -6,17 +6,23 @@ row-level data is committed to this repository.
 ## Rate table
 
 - 169,703 effective-dated rows
-- 39,337 active rows
+- 39,337 active rows before zero-rate filtering
+- 26,335 active rows with a nonzero rate
+- 299 distinct active, nonzero numeric `tax_type` values nationwide
 - 557 distinct active `p_code` values
 - Effective dates range from 1900-01-01 through 2026-07-01
 
-| Avalara level | Active rows | Distinct `p_code` | Tax types |
+| Avalara level | Active nonzero rows | Distinct `p_code` | Distinct tax types |
 |---:|---:|---:|---:|
-| 0 | 21,723 | 557 | 39 |
-| 1 | 13,350 | 556 | 272 |
-| 2 | 2,421 | 505 | 108 |
-| 3 | 1,483 | 344 | 125 |
-| 4 | 360 | 154 | 44 |
+| 0 | 15,039 | 557 | 27 |
+| 1 | 8,235 | 556 | 197 |
+| 2 | 1,683 | 436 | 88 |
+| 3 | 1,124 | 319 | 106 |
+| 4 | 254 | 134 | 36 |
+
+Tax coverage now uses distinct numeric `tax_type` only. Zero-rate placeholders are
+excluded, and repetition across `p_code`, level, category, or description does not
+increase the tax-type denominator. Tax level remains routing and filing metadata.
 
 The source contains a level 4 even though the requested public acquisition model names
 levels 0–3. The app preserves and reports level 4 as `Other`; it does not silently fold it
@@ -44,7 +50,7 @@ included U.S. territory slice copied into local benchmark tables contains 76,261
 The table includes sentinel jurisdiction rows whose ZIP values begin with `000`. Exception
 generation excludes `00000` and `00001` from postal-coverage percentages.
 
-## First strict comparison
+## Superseded row-based comparison
 
 After the initial public seed:
 
@@ -56,10 +62,8 @@ After the initial public seed:
 - 43,863 open exceptions were generated: 23,184 missing public rates, 10,596 rate
   mismatches, 10,030 postal gaps, and 53 unimplemented monitored parsers.
 
-Federal rate rows repeat across `p_code`, so the rate-match percentage is a row coverage
-measure, not a count of distinct laws. Non-federal SST rows are not credited merely because
-a state and rate exist; communications taxability and jurisdiction identity must first be
-normalized.
+These figures are retained as the initial deployment record only. The production
+comparison no longer uses rate rows as the tax denominator.
 
 ## Customer-priority profile
 
@@ -73,24 +77,25 @@ currently open, non-test, invoice-generating customers. A second freshness view 
 426 active customers whose most recent nonzero tax invoice is within the trailing 12
 months.
 
-| Scope | Customers | p_codes | Customer ZIP recognized | Strict rate rows | Full p_codes |
-|---|---:|---:|---:|---:|---:|
-| Ever taxed | 840 | 317 | 785 / 840 (93.452%) | 3,221 / 22,514 (14.307%) | 0 / 317 |
-| Active and ever taxed | 565 | 210 | 543 / 565 (96.106%) | 1,986 / 15,187 (13.077%) | 0 / 210 |
-| Active and taxed in trailing 12 months | 426 | 132 | 420 / 426 (98.592%) | 1,044 / 9,351 (11.165%) | 0 / 132 |
+| Scope | Customers | p_codes | Customer ZIP recognized | Distinct nonzero tax types |
+|---|---:|---:|---:|---:|
+| Ever taxed | 840 | 317 | 785 / 840 (93.452%) | 267 |
+| Active and ever taxed | 565 | 210 | 543 / 565 (96.106%) | 259 |
+| Active and taxed in trailing 12 months | 426 | 132 | 420 / 426 (98.592%) | 212 |
 
-ZIP recognition is the strongest current dimension, but it remains statistical. Rule
-coverage is materially weaker, and no active-customer p_code has every Avalara rule
-matched.
+ZIP recognition remains a separate statistical dimension. Tax-type, public-law,
+filing-entity, and location-assignment coverage are not blended.
 
 ## Tax types and change history
 
-- Active rates contain 406 distinct numeric tax types, 588 tax-type/level pairs, and 591
-  distinct type/level/category/description signatures.
+- Active nonzero rates contain 299 distinct numeric tax types. The former counts of 406
+  types, 588 type/level pairs, and 591 signatures included zero-rate placeholders and
+  non-identity dimensions; they are no longer coverage denominators.
 - CTD's existing public `tax_type_code` values are SST jurisdiction component codes, not
   Avalara tax-type IDs. No direct numeric equivalence should be inferred.
-- The app creates semantic crosswalk candidates from the complete benchmark signature,
-  then requires explicit review before they count as reviewed tax-type coverage.
+- The app reports one record per numeric tax type. It preserves levels, categories,
+  descriptions, and rates as attributes and requires explicit review before a proposed
+  numeric crosswalk counts as reviewed.
 - Invoice tax summaries label charge mechanics as `percentage` or `perLine`; those values
   are units, not the Avalara tax identity. The `avalara_id` join supplies identity when
   present.

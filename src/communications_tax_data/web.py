@@ -31,6 +31,7 @@ from communications_tax_data.models import (
     TaxFilingMap,
     TaxTypeCrosswalk,
 )
+from communications_tax_data.taxonomy import FUSF_PUBLIC_SOURCES
 
 PACKAGE_DIR = Path(__file__).parent
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
@@ -75,8 +76,12 @@ def dashboard_data(session: Session) -> dict:
         "jurisdictions": session.scalar(select(func.count()).select_from(Jurisdiction)) or 0,
         "postal_assignments": session.scalar(select(func.count()).select_from(PostalAssignment))
         or 0,
-        "benchmark_rates": session.scalar(
-            select(func.count()).select_from(BenchmarkRate).where(BenchmarkRate.active.is_(True))
+        "benchmark_tax_types": session.scalar(
+            select(func.count(func.distinct(BenchmarkRate.tax_type))).where(
+                BenchmarkRate.active.is_(True),
+                BenchmarkRate.rate.is_not(None),
+                BenchmarkRate.rate != 0,
+            )
         )
         or 0,
         "benchmark_postal": session.scalar(
@@ -115,8 +120,15 @@ def dashboard_data(session: Session) -> dict:
     )
     benchmark_rows = dict(
         session.execute(
-            select(BenchmarkRate.tax_level, func.count())
-            .where(BenchmarkRate.active.is_(True))
+            select(
+                BenchmarkRate.tax_level,
+                func.count(func.distinct(BenchmarkRate.tax_type)),
+            )
+            .where(
+                BenchmarkRate.active.is_(True),
+                BenchmarkRate.rate.is_not(None),
+                BenchmarkRate.rate != 0,
+            )
             .group_by(BenchmarkRate.tax_level)
         ).all()
     )
@@ -162,10 +174,10 @@ def dashboard_data(session: Session) -> dict:
                     CoverageMetric.dimension.in_(
                         (
                             "customer_zip_statistical",
-                            "strict_rate_rows",
+                            "tax_type_strict_rate",
+                            "tax_type_public_law_support",
                             "tax_type_reviewed_crosswalk",
-                            "filing_entity_rate_rows",
-                            "pcode_fully_strict_rate",
+                            "filing_entity_tax_types",
                         )
                     ),
                 )
@@ -338,33 +350,98 @@ def tax_types(
     limit: int = Query(1000, ge=1, le=5000),
     session: Session = Depends(get_session),
 ):
-    query = select(TaxTypeCrosswalk)
+    rate_query = select(BenchmarkRate).where(
+        BenchmarkRate.active.is_(True),
+        BenchmarkRate.rate.is_not(None),
+        BenchmarkRate.rate != 0,
+    )
+    if tax_type is not None:
+        rate_query = rate_query.where(BenchmarkRate.tax_type == tax_type)
+    rate_rows = list(session.scalars(rate_query))
+    active_types = {row.tax_type for row in rate_rows}
+    query = select(TaxTypeCrosswalk).where(
+        TaxTypeCrosswalk.benchmark_tax_type.in_(active_types)
+    )
     if mapping_status:
         query = query.where(TaxTypeCrosswalk.mapping_status == mapping_status)
-    if tax_type is not None:
-        query = query.where(TaxTypeCrosswalk.benchmark_tax_type == tax_type)
-    rows = session.scalars(
-        query.order_by(
-            TaxTypeCrosswalk.benchmark_tax_type,
-            TaxTypeCrosswalk.benchmark_tax_level,
-        ).limit(limit)
-    )
-    return [
-        {
-            "benchmark_tax_type": row.benchmark_tax_type,
-            "tax_level": row.benchmark_tax_level,
-            "benchmark_category": row.benchmark_tax_category,
-            "benchmark_description": row.benchmark_tax_description,
-            "ctd_tax_concept": row.ctd_tax_concept,
-            "service_category": row.service_category,
-            "mapping_status": row.mapping_status,
-            "mapping_method": row.mapping_method,
-            "confidence": row.confidence,
-            "citation": row.legal_citation,
-            "notes": row.notes,
-        }
-        for row in rows
-    ]
+    crosswalks_by_type: dict[int, list[TaxTypeCrosswalk]] = {}
+    for row in session.scalars(query):
+        crosswalks_by_type.setdefault(row.benchmark_tax_type, []).append(row)
+    if mapping_status:
+        active_types &= set(crosswalks_by_type)
+    rates_by_type: dict[int, list[BenchmarkRate]] = {}
+    for row in rate_rows:
+        if row.tax_type in active_types:
+            rates_by_type.setdefault(row.tax_type, []).append(row)
+
+    result = []
+    for benchmark_tax_type in sorted(rates_by_type)[:limit]:
+        benchmark_rows = rates_by_type[benchmark_tax_type]
+        crosswalk_rows = crosswalks_by_type.get(benchmark_tax_type, [])
+        concepts = sorted(
+            {row.ctd_tax_concept for row in crosswalk_rows if row.ctd_tax_concept}
+        )
+        result.append(
+            {
+                "benchmark_tax_type": benchmark_tax_type,
+                "tax_levels": sorted({row.tax_level for row in benchmark_rows}),
+                "benchmark_categories": sorted(
+                    {
+                        row.tax_category
+                        for row in benchmark_rows
+                        if row.tax_category
+                    }
+                ),
+                "benchmark_descriptions": sorted(
+                    {
+                        row.tax_description
+                        for row in benchmark_rows
+                        if row.tax_description
+                    }
+                ),
+                "nonzero_rates": [
+                    str(value)
+                    for value in sorted(
+                        {row.rate for row in benchmark_rows if row.rate is not None}
+                    )
+                ],
+                "ctd_tax_concepts": concepts,
+                "service_categories": sorted(
+                    {
+                        row.service_category
+                        for row in crosswalk_rows
+                        if row.service_category
+                    }
+                ),
+                "mapping_statuses": sorted(
+                    {row.mapping_status for row in crosswalk_rows}
+                ),
+                "mapping_methods": sorted(
+                    {row.mapping_method for row in crosswalk_rows}
+                ),
+                "confidence": sorted({row.confidence for row in crosswalk_rows}),
+                "public_law_supported": any(
+                    row.ctd_tax_concept and row.legal_citation
+                    for row in crosswalk_rows
+                ),
+                "citations": sorted(
+                    {
+                        row.legal_citation
+                        for row in crosswalk_rows
+                        if row.legal_citation
+                    }
+                ),
+                "public_sources": (
+                    list(FUSF_PUBLIC_SOURCES)
+                    if "federal_universal_service_fund" in concepts
+                    else []
+                ),
+                "notes": sorted(
+                    {row.notes for row in crosswalk_rows if row.notes}
+                ),
+            }
+        )
+    return result
 
 
 @app.get("/api/filing-map")

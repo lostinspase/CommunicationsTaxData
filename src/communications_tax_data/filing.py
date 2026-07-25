@@ -11,6 +11,7 @@ from communications_tax_data.models import (
     TaxFilingMap,
     utcnow,
 )
+from communications_tax_data.taxonomy import enrich_federal_usf_crosswalk
 
 FORM_720_URL = "https://www.irs.gov/forms-pubs/about-form-720"
 FORM_720_INSTRUCTIONS_URL = "https://www.irs.gov/instructions/i720"
@@ -107,7 +108,12 @@ def _filing_map(
 
 def seed_federal_filing_map(session: Session) -> dict[str, int]:
     """Seed public-source-verified federal entities, forms, and benchmark links."""
-    counts = {"entities_inserted": 0, "documents_inserted": 0, "maps_inserted": 0}
+    counts = {
+        "entities_inserted": 0,
+        "documents_inserted": 0,
+        "maps_inserted": 0,
+        "federal_usf_crosswalks_enriched": 0,
+    }
     common = {
         "tax_level": 0,
         "state_code": None,
@@ -337,4 +343,5 @@ def seed_federal_filing_map(session: Session) -> dict[str, int]:
         )
         counts["maps_inserted"] += int(created)
 
+    counts["federal_usf_crosswalks_enriched"] = enrich_federal_usf_crosswalk(session)
     return counts

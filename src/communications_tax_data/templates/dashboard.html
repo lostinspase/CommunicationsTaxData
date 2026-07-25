@@ -43,9 +43,9 @@
   </section>
   <section class="grid">
     <div class="card">
-      <h2>Fact inventory versus benchmark</h2>
+      <h2>Fact inventory versus distinct nonzero benchmark tax types</h2>
       <table>
-        <thead><tr><th>Level</th><th class="num">Public facts</th><th class="num">Active benchmark</th></tr></thead>
+        <thead><tr><th>Level</th><th class="num">Public facts</th><th class="num">Benchmark tax types</th></tr></thead>
         <tbody>
         {% for row in coverage %}
           <tr><td>{{ row.name }}</td><td class="num">{{ "{:,}".format(row.public) }}</td>
@@ -53,8 +53,9 @@
         {% endfor %}
         </tbody>
       </table>
-      <p class="note">Counts are inventory, not a claimed match rate. The comparison engine only
-        credits facts whose jurisdiction, tax identity, rate, and effective date are normalized.</p>
+      <p class="note">Benchmark counts are distinct Avalara tax_type values with an active,
+        nonzero rate. Zero-rate types and repeated p_code rows are excluded. Public facts can express
+        rates, bases, or service variants under one legal tax concept.</p>
     </div>
     <div class="card">
       <h2>Open exceptions</h2>
@@ -87,8 +88,8 @@
       {% endfor %}
       </tbody>
     </table>
-    <p class="note">ZIP figures are statistical recognition only. Rate, reviewed tax-type,
-      filing-map, and fully covered p_code figures are tracked independently.</p>
+    <p class="note">ZIP figures are statistical recognition only. Tax coverage uses distinct
+      nonzero tax types; repeated rate and p_code rows do not change the percentage.</p>
   </section>
   <section class="card" style="margin-top:18px">
     <h2>Recent collection runs</h2>

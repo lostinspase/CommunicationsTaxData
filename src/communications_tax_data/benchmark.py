@@ -17,6 +17,7 @@ from communications_tax_data.models import (
     TaxTypeCrosswalk,
     utcnow,
 )
+from communications_tax_data.taxonomy import enrich_federal_usf_crosswalk
 
 US_COUNTRIES = ("USA", "PRI", "GUM", "VIR", "ASM", "MNP")
 
@@ -194,6 +195,7 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 SELECT DISTINCT tax_type, tax_level, tax_category, tax_description
                 FROM apeiron_avalarataxrate
                 WHERE active = 1
+                  AND COALESCE(rate, 0) <> 0
                 ORDER BY tax_type, tax_level, tax_category, tax_description
                 """
             )
@@ -235,6 +237,9 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 )
                 existing.add(signature)
                 counts["tax_type_candidates_inserted"] += 1
+            counts["federal_usf_crosswalks_enriched"] = (
+                enrich_federal_usf_crosswalk(session)
+            )
         run.status = "success"
         run.source_count = 4
         run.records_seen = (

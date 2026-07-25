@@ -144,6 +144,60 @@ CORE_SOURCES = [
         "cadence_days": 14,
     },
     {
+        "code": "ecfr-fusf-contributors",
+        "name": "47 CFR 54.706 — FUSF contributors and covered services",
+        "publisher": "Electronic Code of Federal Regulations",
+        "source_type": "legal_authority",
+        "url": (
+            "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/"
+            "part-54/subpart-H/section-54.706"
+        ),
+        "tax_level": 0,
+        "cadence_days": 14,
+    },
+    {
+        "code": "ecfr-fusf-computation",
+        "name": "47 CFR 54.709 — FUSF contribution computation",
+        "publisher": "Electronic Code of Federal Regulations",
+        "source_type": "legal_authority",
+        "url": (
+            "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/"
+            "part-54/subpart-H/section-54.709"
+        ),
+        "tax_level": 0,
+        "cadence_days": 14,
+    },
+    {
+        "code": "ecfr-fusf-customer-recovery",
+        "name": "47 CFR 54.712 — recovery of FUSF costs from end users",
+        "publisher": "Electronic Code of Federal Regulations",
+        "source_type": "legal_authority",
+        "url": (
+            "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/"
+            "part-54/subpart-H/section-54.712"
+        ),
+        "tax_level": 0,
+        "cadence_days": 14,
+    },
+    {
+        "code": "fcc-form-499a-2026-instructions",
+        "name": "2026 FCC Form 499-A instructions and revenue categories",
+        "publisher": "Federal Communications Commission",
+        "source_type": "taxability_guidance",
+        "url": "https://docs.fcc.gov/public/attachments/DA-25-308A3.pdf",
+        "tax_level": 0,
+        "cadence_days": 30,
+    },
+    {
+        "code": "fcc-2006-usf-contribution-order",
+        "name": "2006 USF contribution methodology order",
+        "publisher": "Federal Communications Commission",
+        "source_type": "legal_authority",
+        "url": "https://docs.fcc.gov/public/attachments/FCC-06-94A1.pdf",
+        "tax_level": 0,
+        "cadence_days": 90,
+    },
+    {
         "code": "sst-taxability-matrices",
         "name": "Streamlined Sales Tax state taxability matrices",
         "publisher": "Streamlined Sales Tax Governing Board",

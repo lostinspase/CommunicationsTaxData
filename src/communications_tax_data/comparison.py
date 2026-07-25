@@ -153,12 +153,23 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
         primary_locations.setdefault(location.p_code, location)
 
     exceptions: list[CoverageException] = []
-    active_rates = list(
-        session.scalars(select(BenchmarkRate).where(BenchmarkRate.active.is_(True)))
+    active_rates = sorted(
+        session.scalars(
+            select(BenchmarkRate).where(
+                BenchmarkRate.active.is_(True),
+                BenchmarkRate.rate.is_not(None),
+                BenchmarkRate.rate != Decimal("0"),
+            )
+        ),
+        key=lambda item: (item.tax_type, item.benchmark_id),
     )
-    matched_rates = 0
-    matched_rate_ids: set[int] = set()
-    for benchmark in active_rates:
+    rates_by_tax_type: dict[int, list[BenchmarkRate]] = {}
+    for item in active_rates:
+        rates_by_tax_type.setdefault(item.tax_type, []).append(item)
+    matched_tax_types: set[int] = set()
+    for tax_type, type_rates in rates_by_tax_type.items():
+        federal_rates = [item for item in type_rates if item.tax_level == 0]
+        benchmark = federal_rates[0] if federal_rates else type_rates[0]
         location = primary_locations.get(benchmark.p_code)
         state = location.state_code if location else None
         label = None
@@ -168,44 +179,75 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
                 for part in [location.locality_name, location.county_name, location.state_code]
                 if part
             )
-        kind = _keywords(benchmark.tax_description)
-        candidates = federal_by_kind.get(kind, []) if benchmark.tax_level == 0 and kind else []
+        kind = next(
+            (
+                candidate
+                for item in type_rates
+                if (candidate := _keywords(item.tax_description))
+            ),
+            None,
+        )
+        candidates = federal_by_kind.get(kind, []) if federal_rates and kind else []
+        benchmark_values = sorted(
+            {item.rate for item in type_rates if item.rate is not None}
+        )
         rate_matches = [
-            fact for fact in candidates if fact.rate is not None and fact.rate == benchmark.rate
+            fact
+            for fact in candidates
+            if fact.rate is not None and fact.rate in benchmark_values
         ]
         if rate_matches:
-            matched_rates += 1
-            matched_rate_ids.add(benchmark.benchmark_id)
+            matched_tax_types.add(tax_type)
             continue
         if candidates:
             exception_type = "RATE_MISMATCH"
             summary = (
-                f"Public {kind} fact exists but no current rate equals benchmark "
-                f"{benchmark.rate}."
+                f"Public {kind} facts exist but no current rate equals any nonzero "
+                f"Avalara rate for tax type {tax_type}."
             )
         else:
             exception_type = "MISSING_PUBLIC_RATE"
             summary = (
-                f"No normalized public fact matches benchmark tax "
-                f"{benchmark.tax_description or benchmark.tax_type}."
+                f"No normalized public fact matches Avalara tax type {tax_type} "
+                f"({benchmark.tax_description or 'no description'})."
             )
         exceptions.append(
             CoverageException(
                 comparison_run_id=run.id,
                 exception_type=exception_type,
-                severity="high" if benchmark.tax_level <= 1 else "medium",
+                severity=(
+                    "high"
+                    if min(item.tax_level for item in type_rates) <= 1
+                    else "medium"
+                ),
                 state_code=state,
                 jurisdiction_label=label,
                 benchmark_rate_id=benchmark.benchmark_id,
                 public_tax_fact_id=candidates[0].id if candidates else None,
                 summary=summary,
                 details={
-                    "tax_level": benchmark.tax_level,
-                    "tax_type": benchmark.tax_type,
-                    "tax_category": benchmark.tax_category,
-                    "tax_description": benchmark.tax_description,
-                    "benchmark_rate": str(benchmark.rate) if benchmark.rate is not None else None,
+                    "tax_type": tax_type,
+                    "tax_levels": sorted({item.tax_level for item in type_rates}),
+                    "tax_categories": sorted(
+                        {item.tax_category for item in type_rates if item.tax_category}
+                    ),
+                    "tax_descriptions": sorted(
+                        {
+                            item.tax_description
+                            for item in type_rates
+                            if item.tax_description
+                        }
+                    ),
+                    "benchmark_nonzero_rates": [
+                        str(value) for value in benchmark_values
+                    ],
+                    "benchmark_rate_rows": len(type_rates),
+                    "benchmark_pcodes": len({item.p_code for item in type_rates}),
                     "candidate_rates": [str(item.rate) for item in candidates],
+                    "method": (
+                        "One exception per distinct nonzero Avalara tax_type. "
+                        "Repeated p_code rows are diagnostic detail only."
+                    ),
                 },
             )
         )
@@ -253,10 +295,9 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
             )
         )
 
-    crosswalks = {
-        item.benchmark_signature: item
-        for item in session.scalars(select(TaxTypeCrosswalk))
-    }
+    crosswalks_by_type: dict[int, list[TaxTypeCrosswalk]] = {}
+    for item in session.scalars(select(TaxTypeCrosswalk)):
+        crosswalks_by_type.setdefault(item.benchmark_tax_type, []).append(item)
     filing_maps = list(
         session.scalars(
             select(TaxFilingMap).where(
@@ -319,14 +360,15 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
 
     add_metric(
         "benchmark_total",
-        "strict_rate_rows",
-        matched_rates,
-        len(active_rates),
+        "tax_type_strict_rate",
+        len(matched_tax_types),
+        len(rates_by_tax_type),
         {
             "method": (
-                "Current normalized public fact, semantic tax family, and exact rate. "
-                "Non-federal rules remain unmatched until taxability and jurisdiction "
-                "are normalized."
+                "Distinct active Avalara tax_type values with a nonzero rate only. "
+                "A type is credited when a current normalized public fact in the same "
+                "semantic family has one of the type's benchmark rates. Repeated p_code "
+                "rows do not affect the percentage."
             )
         },
     )
@@ -340,38 +382,56 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
             "warning": "Census ZCTA coverage is not ZIP+4 or rooftop sourcing.",
         },
     )
-    all_signatures = {
-        _signature(
-            item.tax_type,
-            item.tax_level,
-            item.tax_category,
-            item.tax_description,
+    all_tax_types = set(rates_by_tax_type)
+    candidate_tax_types = {
+        tax_type
+        for tax_type in all_tax_types
+        if any(
+            item.ctd_tax_concept
+            for item in crosswalks_by_type.get(tax_type, [])
         )
-        for item in active_rates
     }
-    candidate_signatures = {
-        signature
-        for signature in all_signatures
-        if signature in crosswalks and crosswalks[signature].ctd_tax_concept
+    reviewed_tax_types = {
+        tax_type
+        for tax_type in all_tax_types
+        if any(
+            item.mapping_status in {"reviewed", "verified", "published"}
+            for item in crosswalks_by_type.get(tax_type, [])
+        )
     }
-    reviewed_signatures = {
-        signature
-        for signature in all_signatures
-        if signature in crosswalks
-        and crosswalks[signature].mapping_status in {"reviewed", "verified", "published"}
+    public_law_supported_tax_types = {
+        tax_type
+        for tax_type in all_tax_types
+        if any(
+            item.ctd_tax_concept and item.legal_citation
+            for item in crosswalks_by_type.get(tax_type, [])
+        )
     }
     add_metric(
         "benchmark_total",
         "tax_type_candidate_crosswalk",
-        len(candidate_signatures),
-        len(all_signatures),
+        len(candidate_tax_types),
+        len(all_tax_types),
         {"warning": "Candidate semantic grouping is not a reviewed taxability mapping."},
     )
     add_metric(
         "benchmark_total",
         "tax_type_reviewed_crosswalk",
-        len(reviewed_signatures),
-        len(all_signatures),
+        len(reviewed_tax_types),
+        len(all_tax_types),
+    )
+    add_metric(
+        "benchmark_total",
+        "tax_type_public_law_support",
+        len(public_law_supported_tax_types),
+        len(all_tax_types),
+        {
+            "method": (
+                "A distinct nonzero Avalara tax_type has a CTD concept and a public "
+                "legal citation. This does not make Avalara's proprietary numeric ID "
+                "an official government identifier."
+            )
+        },
     )
 
     active_missing_filing: dict[tuple[int, int, str | None], BenchmarkRate] = {}
@@ -385,52 +445,34 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
             for p_code in pcodes
             for benchmark in rates_by_pcode.get(p_code, [])
         ]
-        matched_scope_rates = [
-            item for item in scope_rates if item.benchmark_id in matched_rate_ids
-        ]
-        scope_signatures = {
-            _signature(
-                item.tax_type,
-                item.tax_level,
-                item.tax_category,
-                item.tax_description,
-            )
-            for item in scope_rates
-        }
-        scope_candidate_signatures = scope_signatures & candidate_signatures
-        scope_reviewed_signatures = scope_signatures & reviewed_signatures
-        pcodes_with_matches = {item.p_code for item in matched_scope_rates}
-        fully_covered_pcodes = {
-            p_code
-            for p_code in pcodes
-            if rates_by_pcode.get(p_code)
-            and all(
-                item.benchmark_id in matched_rate_ids
-                for item in rates_by_pcode[p_code]
-            )
-        }
-        benchmark_type_levels = {
-            (item.tax_type, item.tax_level) for item in scope_rates
-        }
-        matched_type_levels = {
-            (item.tax_type, item.tax_level) for item in matched_scope_rates
-        }
-        mapped_filing_rates: list[BenchmarkRate] = []
+        scope_tax_types = {item.tax_type for item in scope_rates}
+        scope_matched_tax_types = scope_tax_types & matched_tax_types
+        scope_candidate_tax_types = scope_tax_types & candidate_tax_types
+        scope_reviewed_tax_types = scope_tax_types & reviewed_tax_types
+        scope_public_law_tax_types = (
+            scope_tax_types & public_law_supported_tax_types
+        )
+        filing_results: dict[int, list[bool]] = {}
         for benchmark in scope_rates:
             state = (
                 primary_locations[benchmark.p_code].state_code
                 if benchmark.p_code in primary_locations
                 else None
             )
-            if any(
+            mapped = any(
                 _filing_map_applies(filing_map, benchmark, state)
                 for filing_map in filing_maps
-            ):
-                mapped_filing_rates.append(benchmark)
-            elif scope == "customer_active":
+            )
+            filing_results.setdefault(benchmark.tax_type, []).append(mapped)
+            if not mapped and scope == "customer_active":
                 active_missing_filing.setdefault(
                     (benchmark.tax_type, benchmark.tax_level, state), benchmark
                 )
+        fully_mapped_filing_tax_types = {
+            tax_type
+            for tax_type, results in filing_results.items()
+            if results and all(results)
+        }
 
         add_metric(
             scope,
@@ -458,53 +500,46 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
         )
         add_metric(
             scope,
-            "strict_rate_rows",
-            len(matched_scope_rates),
-            len(scope_rates),
-        )
-        add_metric(
-            scope,
-            "pcode_any_strict_rate",
-            len(pcodes_with_matches),
-            len(pcodes),
+            "tax_type_strict_rate",
+            len(scope_matched_tax_types),
+            len(scope_tax_types),
             {
-                "warning": (
-                    "A federal match makes this true; it does not mean a p_code is "
-                    "calculation-ready."
+                "method": (
+                    "Distinct active nonzero tax_type values present at the customer "
+                    "scope; repeated rate and p_code rows are ignored."
                 )
             },
         )
         add_metric(
             scope,
-            "pcode_fully_strict_rate",
-            len(fully_covered_pcodes),
-            len(pcodes),
-        )
-        add_metric(
-            scope,
-            "tax_type_level_any_strict_rate",
-            len(matched_type_levels),
-            len(benchmark_type_levels),
-            {"warning": "This is heuristic family/rate matching, not an approved crosswalk."},
-        )
-        add_metric(
-            scope,
             "tax_type_candidate_crosswalk",
-            len(scope_candidate_signatures),
-            len(scope_signatures),
+            len(scope_candidate_tax_types),
+            len(scope_tax_types),
             {"warning": "Candidate semantic grouping is not legally reviewed."},
         )
         add_metric(
             scope,
             "tax_type_reviewed_crosswalk",
-            len(scope_reviewed_signatures),
-            len(scope_signatures),
+            len(scope_reviewed_tax_types),
+            len(scope_tax_types),
         )
         add_metric(
             scope,
-            "filing_entity_rate_rows",
-            len(mapped_filing_rates),
-            len(scope_rates),
+            "tax_type_public_law_support",
+            len(scope_public_law_tax_types),
+            len(scope_tax_types),
+        )
+        add_metric(
+            scope,
+            "filing_entity_tax_types",
+            len(fully_mapped_filing_tax_types),
+            len(scope_tax_types),
+            {
+                "method": (
+                    "A tax type is covered only when every relevant benchmark "
+                    "tax-level/state route in the scope has a current filing map."
+                )
+            },
         )
 
     for (tax_type, tax_level, state), benchmark in active_missing_filing.items():
@@ -593,15 +628,18 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
         stale.resolved_at = now
     session.add_all(new_exceptions)
     session.flush()
-    stats.seen = len(active_rates) + postal_seen
+    stats.seen = len(rates_by_tax_type) + postal_seen
     stats.inserted = len(new_exceptions)
     stats.updated = retained + resolved
     counts = Counter(item.exception_type for item in exceptions)
     stats.details = {
-        "active_benchmark_rates": len(active_rates),
-        "matched_benchmark_rates": matched_rates,
-        "benchmark_rate_match_percent": (
-            round(100 * matched_rates / len(active_rates), 3) if active_rates else None
+        "active_nonzero_benchmark_tax_types": len(rates_by_tax_type),
+        "active_nonzero_benchmark_rate_rows_diagnostic": len(active_rates),
+        "matched_benchmark_tax_types": len(matched_tax_types),
+        "benchmark_tax_type_match_percent": (
+            round(100 * len(matched_tax_types) / len(rates_by_tax_type), 3)
+            if rates_by_tax_type
+            else None
         ),
         "benchmark_postal_rows": postal_seen,
         "statistically_covered_postal_rows": postal_matched,
@@ -617,8 +655,9 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
         "customer_priority_coverage": priority_summary,
         "reviewed_filing_maps": len(filing_maps),
         "methodology": (
-            "Rate matching is intentionally strict. Non-federal facts require a normalized "
-            "jurisdiction/taxability mapping before they count as matched."
+            "Tax coverage uses distinct active Avalara tax_type values with nonzero "
+            "rates. Zero-rate types and repeated p_code rows are excluded. Non-federal "
+            "types require a normalized public-law mapping before they count as matched."
         ),
     }
     finish_run(run, stats)

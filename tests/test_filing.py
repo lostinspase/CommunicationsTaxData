@@ -11,6 +11,7 @@ def test_federal_filing_seed_is_idempotent(session):
         "entities_inserted": 4,
         "documents_inserted": 5,
         "maps_inserted": 36,
+        "federal_usf_crosswalks_enriched": 0,
     }
     assert session.query(FilingEntity).count() == 4
     assert session.query(FilingDocument).count() == 5
@@ -28,5 +29,6 @@ def test_federal_filing_seed_is_idempotent(session):
         "entities_inserted": 0,
         "documents_inserted": 0,
         "maps_inserted": 0,
+        "federal_usf_crosswalks_enriched": 0,
     }
     assert session.query(TaxFilingMap).count() == 36

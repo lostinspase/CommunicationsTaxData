@@ -100,6 +100,11 @@ uv run ctd report
 
 Generated reports are ignored by Git because they can describe licensed benchmark data.
 
+Tax-type APIs and coverage metrics use one record per distinct active Avalara `tax_type`
+with a nonzero rate. Repeated p_code/rate rows and zero-rate placeholders are excluded.
+FUSF service and billing variants are normalized under one legal FUSF concept; see
+[`docs/federal-fusf-taxonomy.md`](docs/federal-fusf-taxonomy.md).
+
 For a first production deployment, a previously verified local seed can be copied in
 bounded batches and one atomic transaction:
 

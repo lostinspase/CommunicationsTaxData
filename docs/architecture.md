@@ -32,9 +32,12 @@ coverage and customer-priority coverage are not interchangeable. The primary ope
 scope is active, non-test, invoice-generating customers that have had nonzero invoice
 tax. Historical and trailing-12-month scopes remain alongside it.
 
-ZIP recognition, p_code completeness, tax-rule matching, reviewed taxonomy mapping,
-filing-entity mapping, and calculation-ready location profiles are separate dimensions.
-The dashboard does not collapse them into one blended percentage.
+Tax coverage uses distinct active Avalara `tax_type` values with a nonzero rate. Zero-rate
+placeholders and repeated p_code/rate rows are excluded. Tax levels, jurisdictions,
+categories, descriptions, and service variants remain attributes and routing rules, not
+additional tax identities. ZIP recognition, reviewed taxonomy mapping, public-law
+support, filing-entity mapping, and calculation-ready location profiles are separate
+dimensions. The dashboard does not collapse them into one blended percentage.
 
 ## Filing and payment map
 

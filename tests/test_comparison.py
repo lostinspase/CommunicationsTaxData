@@ -94,7 +94,7 @@ def test_strict_comparison_matches_known_federal_rate_and_flags_unknown(session)
     )
     session.commit()
     result = compare_coverage(session, as_of=date(2026, 7, 24))
-    assert result["matched_benchmark_rates"] == 1
+    assert result["matched_benchmark_tax_types"] == 1
     assert session.query(CoverageException).count() == 1
     assert session.query(CoverageException).one().exception_type == "MISSING_PUBLIC_RATE"
 
@@ -199,9 +199,8 @@ def test_customer_priority_metrics_keep_zip_and_rate_denominators_separate(sessi
     assert result["customer_priority_coverage"]["customer_active"][
         "customer_zip_statistical"
     ] == 100.0
-    assert result["customer_priority_coverage"]["customer_active"]["strict_rate_rows"] == 100.0
     assert result["customer_priority_coverage"]["customer_active"][
-        "pcode_fully_strict_rate"
+        "tax_type_strict_rate"
     ] == 100.0
     metrics = {
         item.dimension: item
@@ -210,4 +209,66 @@ def test_customer_priority_metrics_keep_zip_and_rate_denominators_separate(sessi
         .all()
     }
     assert metrics["customer_zip_statistical"].denominator == 1
-    assert metrics["strict_rate_rows"].denominator == 1
+    assert metrics["tax_type_strict_rate"].denominator == 1
+
+
+def test_tax_coverage_counts_unique_nonzero_tax_types_only(session):
+    session.add_all(
+        [
+            BenchmarkRate(
+                benchmark_id=101,
+                p_code=1,
+                tax_type=900,
+                tax_level=1,
+                effective_date=datetime(2026, 7, 1),
+                active=True,
+                tax_category="TEST",
+                tax_description="One repeated tax type",
+                level_exemptible=False,
+                rate=Decimal("0.01"),
+                source_timestamp=datetime(2026, 7, 1),
+            ),
+            BenchmarkRate(
+                benchmark_id=102,
+                p_code=2,
+                tax_type=900,
+                tax_level=2,
+                effective_date=datetime(2026, 7, 1),
+                active=True,
+                tax_category="TEST",
+                tax_description="One repeated tax type",
+                level_exemptible=False,
+                rate=Decimal("0.02"),
+                source_timestamp=datetime(2026, 7, 1),
+            ),
+            BenchmarkRate(
+                benchmark_id=103,
+                p_code=2,
+                tax_type=901,
+                tax_level=1,
+                effective_date=datetime(2026, 7, 1),
+                active=True,
+                tax_category="TEST",
+                tax_description="Zero placeholder",
+                level_exemptible=False,
+                rate=Decimal("0"),
+                source_timestamp=datetime(2026, 7, 1),
+            ),
+        ]
+    )
+    session.commit()
+
+    result = compare_coverage(session, as_of=date(2026, 7, 24))
+    metric = session.query(CoverageMetric).filter_by(
+        comparison_run_id=result["run_id"],
+        scope="benchmark_total",
+        dimension="tax_type_strict_rate",
+    ).one()
+
+    assert result["active_nonzero_benchmark_tax_types"] == 1
+    assert result["active_nonzero_benchmark_rate_rows_diagnostic"] == 2
+    assert metric.denominator == 1
+    assert session.query(CoverageException).filter_by(
+        exception_type="MISSING_PUBLIC_RATE",
+        status="open",
+    ).count() == 1
