@@ -90,3 +90,22 @@ Production was upgraded on 2026-07-25 to commit
   1,986/15,187 strict rate-row matches, and 0/210 fully covered p_codes.
 - Dashboard and JSON endpoints were verified on `127.0.0.1:8091`; 15 automated tests and
   lint pass in the release workspace.
+
+## Distinct nonzero tax-type correction
+
+Production was upgraded on 2026-07-25 to commit
+`36b7a8ad0d0a63ce2d8f1814a61917c5ae40929b`:
+
+- The tax denominator is now 299 distinct active, nonzero Avalara `tax_type` values,
+  rather than 39,337 repeated active rate rows.
+- The federal slice is 27 distinct nonzero types. Current strict public-rate support
+  reaches 21 of 27 federal types; the total/customer-active metrics are 21/299 and
+  21/259 respectively.
+- The twelve nonzero Avalara FUSF types are normalized to one CTD FUSF concept with
+  cited service, revenue-allocation, and customer-billing rules.
+- Five FCC/eCFR FUSF authorities were added to monitored sources.
+- One rate exception is now emitted per distinct nonzero tax type. The comparison
+  superseded 34,219 obsolete row-based exceptions and left 11,140 current open
+  exceptions, including postal, filing-route, and parser gaps.
+- The dashboard and `/api/tax-types` were restarted and verified on
+  `127.0.0.1:8091`. Seventeen automated tests and lint pass in the release workspace.

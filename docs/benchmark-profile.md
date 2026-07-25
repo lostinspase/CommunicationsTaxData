@@ -104,3 +104,18 @@ The supplied Avalara changelog contains 114,384 rows through 2026-07-01, coverin
 p_code/type/level rules, 439 p_codes, and 201 tax types. CTD incrementally mirrors it in
 `ctd_benchmark_rate_change`. Public-source hashes and normalized fact-field changes are
 kept separately, so licensed benchmark changes are never treated as upstream authority.
+
+## Current distinct-tax-type comparison
+
+The corrected production comparison on 2026-07-25 reports:
+
+- 299 distinct active nonzero benchmark tax types nationwide.
+- 21 tax types with a current strict public-family/rate match (7.023%).
+- 259 distinct nonzero types in the active-customer scope, with 21 strict matches
+  (8.108%).
+- 27 distinct nonzero federal types, with all 21 strict matches occurring in the federal
+  slice (77.778% federal strict rate coverage).
+- 12 cited FUSF variants normalized beneath one federal-USF legal concept.
+
+Strict rate support, legal-citation support, reviewed numeric crosswalks, and complete
+filing routes remain separate metrics.
