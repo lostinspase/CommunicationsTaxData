@@ -6,6 +6,7 @@ CURRENT="$(mktemp)"
 UPDATED="$(mktemp)"
 trap 'rm -f "$CURRENT" "$UPDATED"' EXIT
 
+mkdir -p "$APP_DIR/logs"
 crontab -l >"$CURRENT" 2>/dev/null || true
 sed '/# BEGIN COMMUNICATIONS TAX DATA/,/# END COMMUNICATIONS TAX DATA/d' \
   "$CURRENT" >"$UPDATED"
