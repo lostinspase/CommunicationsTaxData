@@ -4,7 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from communications_tax_data.collectors.base import (
@@ -16,36 +16,47 @@ from communications_tax_data.collectors.base import (
     record_response,
     start_run,
 )
-from communications_tax_data.models import Source, utcnow
+from communications_tax_data.models import Source, SourceCheck, utcnow
 
 
 class SourceMonitor:
     name = "source-monitor"
 
+    @staticmethod
+    def _due_sources(session: Session, *, now, force: bool) -> list[Source]:
+        sources = list(
+            session.scalars(
+                select(Source).where(Source.active.is_(True)).order_by(Source.id)
+            )
+        )
+        if force:
+            return sources
+        latest_check_ids = select(func.max(SourceCheck.id)).group_by(SourceCheck.source_id)
+        failed_source_ids = set(
+            session.scalars(
+                select(SourceCheck.source_id).where(
+                    SourceCheck.id.in_(latest_check_ids),
+                    SourceCheck.error.is_not(None),
+                )
+            )
+        )
+        return [
+            source
+            for source in sources
+            if source.last_checked_at is None
+            or (
+                source.id in failed_source_ids
+                and source.last_checked_at < now - timedelta(days=1)
+            )
+            or source.last_checked_at < now - timedelta(days=source.cadence_days)
+        ]
+
     def collect(self, session: Session, *, force: bool = False) -> CollectionStats:
         run = start_run(session, self.name)
         stats = CollectionStats()
         now = utcnow()
-        sources = list(
-            session.scalars(
-                select(Source)
-                .where(
-                    Source.active.is_(True),
-                    or_(
-                        Source.last_checked_at.is_(None),
-                        Source.last_checked_at < now - timedelta(days=1),
-                    ),
-                )
-                .order_by(Source.id)
-            )
-        )
-        if not force:
-            sources = [
-                source
-                for source in sources
-                if source.last_checked_at is None
-                or source.last_checked_at < now - timedelta(days=source.cadence_days)
-            ]
+        sources = self._due_sources(session, now=now, force=force)
+
         def fetch(client, source):
             started = time.monotonic()
             try:
