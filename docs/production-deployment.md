@@ -72,3 +72,21 @@ Production was initialized on 2026-07-25:
 
 Comparison runs preserve prior exceptions as `superseded`, so total exception-table rows
 grow over time while the dashboard reports only the current open set.
+
+## Customer-priority and filing-map extension
+
+Production was upgraded on 2026-07-25 to commit
+`a7b6dbbfa3ffc9a6d1e3ff5ba57b16c758b8bd7f`:
+
+- 114,384 benchmark changelog rows were imported append-only.
+- 840 customer tax-need records were derived from nonzero invoice tax; 565 are active.
+- 591 benchmark tax signatures were staged, with 419 semantic concept candidates and
+  zero mappings counted as reviewed.
+- 36 source-verified federal tax-type filing maps link four entities and five filing or
+  exemption documents.
+- 403 CTD location profiles were generated for priority ZIP/ZIP+4 keys; all remain
+  statistical and `calculation_ready=false`.
+- The active-customer comparison reports 543/565 statistical ZIP recognition,
+  1,986/15,187 strict rate-row matches, and 0/210 fully covered p_codes.
+- Dashboard and JSON endpoints were verified on `127.0.0.1:8091`; 15 automated tests and
+  lint pass in the release workspace.
