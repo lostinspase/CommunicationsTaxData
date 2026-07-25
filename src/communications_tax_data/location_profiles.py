@@ -59,7 +59,10 @@ def build_customer_location_profiles(
         "ambiguous_profiles": 0,
         "calculation_ready_profiles": 0,
     }
-    for (postal_code, plus_four), group in sorted(grouped.items()):
+    ordered_groups = sorted(
+        grouped.items(), key=lambda item: (item[0][0], item[0][1] or "")
+    )
+    for (postal_code, plus_four), group in ordered_groups:
         candidates = assignments.get(postal_code, [])
         member_payload = sorted(
             {

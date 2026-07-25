@@ -56,21 +56,41 @@ def test_location_profile_is_stable_and_not_calculation_ready(session):
             absolute_tax_amount=Decimal("100"),
         )
     )
+    session.add(
+        CustomerTaxNeed(
+            customer_id=2,
+            customer_number=10002,
+            p_code=123,
+            postal_code="10001",
+            plus_four=None,
+            state_code="NY",
+            country_code="US",
+            active_customer=True,
+            first_tax_invoice=datetime(2025, 1, 1),
+            last_tax_invoice=datetime(2026, 7, 1),
+            tax_charge_rows=1,
+            absolute_tax_amount=Decimal("1"),
+        )
+    )
     session.flush()
 
     first = build_customer_location_profiles(session, as_of=date(2026, 7, 25))
     session.flush()
-    profile = session.query(LocationProfile).one()
+    profile = (
+        session.query(LocationProfile)
+        .filter(LocationProfile.plus_four == "0001")
+        .one()
+    )
 
-    assert first["profiles_inserted"] == 1
+    assert first["profiles_inserted"] == 2
     assert profile.profile_code.startswith("CTD-")
     assert profile.benchmark_p_code == 123
     assert profile.confidence == "statistical"
     assert profile.calculation_ready is False
-    assert session.query(LocationProfileMember).count() == 1
+    assert session.query(LocationProfileMember).count() == 2
 
     second = build_customer_location_profiles(session, as_of=date(2026, 7, 25))
     session.flush()
-    assert second["profiles_refreshed"] == 1
-    assert session.query(LocationProfile).count() == 1
-    assert session.query(LocationProfileMember).count() == 1
+    assert second["profiles_refreshed"] == 2
+    assert session.query(LocationProfile).count() == 2
+    assert session.query(LocationProfileMember).count() == 2
