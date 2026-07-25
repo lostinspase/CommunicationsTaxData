@@ -9,6 +9,7 @@
 | Federal | FCC DA 26-646 | 30 days | 2026–27 TRS factors and distinct revenue bases |
 | State/local sales | SST rate directory | Quarterly, checked weekly | Four rate variants and effective periods |
 | Geography | 2020 Census ZCTA relationship files | Annual | County/place overlaps and allocation ratios |
+| Federal filing | IRS Form 720/Publication 510, USAC Forms 499, FCC CORES | 14–30 days | Filing entity, payment recipient, return/portal, exemption guidance |
 
 ## Monitored discovery sources
 
@@ -22,13 +23,15 @@ Monitoring proves a source was checked and changed; it does not claim normalizat
 
 ## Priority acquisition sequence
 
-1. Import the benchmark and rank active gaps by Apeiron transaction/state footprint.
-2. Implement state communications sources for those states: PUC assessments, USF, TRS,
+1. Rank gaps by active customer p_code, recent invoice-tax use, and tax dollars.
+2. Implement state communications and filing sources for those states: PUC assessments, USF, TRS,
    911/988, gross receipts, and communications-specific sales tax.
-3. Add non-SST sales/use feeds for footprint states.
-4. Normalize product/service taxability, exemptions, caps, bases, and tax-on-tax rules.
-5. License or procure ZIP+4/address boundary data and add 911/rate-center overlays.
-6. Expand local ordinance collectors in order of billed revenue and benchmark gap count.
+3. Add the return, payment portal/payee, exemption forms, and due rule for every reviewed
+   tax-type/jurisdiction mapping.
+4. Add non-SST sales/use feeds for footprint states.
+5. Normalize product/service taxability, exemptions, caps, bases, and tax-on-tax rules.
+6. License or procure ZIP+4/address boundary data and add 911/rate-center overlays.
+7. Expand local ordinance collectors in order of billed revenue and benchmark gap count.
 
 ## Geographic warning
 

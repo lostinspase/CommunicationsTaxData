@@ -14,6 +14,44 @@
 Collectors are idempotent by natural key plus effective date. They do not overwrite a
 historical period with a new current value.
 
+## Change ledgers
+
+Change detection has three distinct layers:
+
+- `ctd_source_check` records every retrieval, response/hash, and whether the source
+  artifact changed.
+- `ctd_tax_fact_change` records inserted or changed normalized fields and ties the event
+  to the collection run. Effective-dated facts remain the calculation history.
+- `ctd_benchmark_rate_change` incrementally mirrors the licensed comparison changelog.
+  It is benchmark evidence only and is never treated as a public upstream source.
+
+## Coverage denominators
+
+`ctd_coverage_metric` keeps the numerator and denominator for each run. Full-universe
+coverage and customer-priority coverage are not interchangeable. The primary operational
+scope is active, non-test, invoice-generating customers that have had nonzero invoice
+tax. Historical and trailing-12-month scopes remain alongside it.
+
+ZIP recognition, p_code completeness, tax-rule matching, reviewed taxonomy mapping,
+filing-entity mapping, and calculation-ready location profiles are separate dimensions.
+The dashboard does not collapse them into one blended percentage.
+
+## Filing and payment map
+
+`ctd_tax_filing_map` links an effective-dated CTD concept and optional benchmark
+tax-type/location key to the report recipient, payment recipient, return or portal,
+exemption document, cadence, due rule, reporting basis, and legal citation. Federal seed
+records are public-source verified. State/local mappings remain exceptions until their
+exact tax-type and jurisdiction association is reviewed.
+
+## Location identifiers
+
+Avalara p_codes are stored in the benchmark namespace. CTD's canonical identifier is a
+deterministic `CTD-…` profile code based on the effective jurisdiction composition.
+Current ZCTA relationships generate only statistical candidate profiles. They retain
+the benchmark p_code as a cross-reference when unambiguous, but remain
+`calculation_ready=false`.
+
 ## Trust levels
 
 - `authoritative=true`: agency, legislature, regulator, or its designated administrator.

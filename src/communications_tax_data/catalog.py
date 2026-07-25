@@ -66,6 +66,55 @@ STATE_DOR_URLS = {
 
 CORE_SOURCES = [
     {
+        "code": "irs-form-720-current",
+        "name": "Current Form 720 and instructions",
+        "publisher": "Internal Revenue Service",
+        "source_type": "filing_document",
+        "url": "https://www.irs.gov/forms-pubs/about-form-720",
+        "tax_level": 0,
+        "cadence_days": 30,
+        "notes": "Federal communications excise return and current revision links.",
+    },
+    {
+        "code": "irs-publication-510-current",
+        "name": "Publication 510 communications-tax exemption guidance",
+        "publisher": "Internal Revenue Service",
+        "source_type": "exemption_guidance",
+        "url": "https://www.irs.gov/publications/p510",
+        "tax_level": 0,
+        "cadence_days": 30,
+    },
+    {
+        "code": "usac-forms-499-current",
+        "name": "Current FCC Forms 499-A and 499-Q",
+        "publisher": "Universal Service Administrative Company",
+        "source_type": "filing_document",
+        "url": "https://www.usac.org/service-providers/resources/forms/",
+        "tax_level": 0,
+        "cadence_days": 14,
+    },
+    {
+        "code": "usac-non-usac-payment-administrators",
+        "name": "TRS, LNPA, NANPA, and ITSP payment administrators",
+        "publisher": "Universal Service Administrative Company",
+        "source_type": "payment_directory",
+        "url": (
+            "https://www.usac.org/service-providers/making-payments/non-usac-payments/"
+            "invoice-from-third-parties/"
+        ),
+        "tax_level": 0,
+        "cadence_days": 30,
+    },
+    {
+        "code": "fcc-cores-regulatory-fees",
+        "name": "FCC CORES regulatory-fee filing and payment",
+        "publisher": "Federal Communications Commission",
+        "source_type": "filing_portal",
+        "url": "https://www.fcc.gov/licensing-databases/fees/cores-payment-system",
+        "tax_level": 0,
+        "cadence_days": 30,
+    },
+    {
         "code": "fcc-911-fee-reports",
         "name": "Annual 911 fee reports",
         "publisher": "Federal Communications Commission",

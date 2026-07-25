@@ -20,6 +20,7 @@ from communications_tax_data.collectors.base import (
     get_or_create_source,
     get_with_retry,
     http_client,
+    record_fact_change,
     record_response,
     start_run,
 )
@@ -98,6 +99,7 @@ class SstRateCollector:
                 stats.sources += 1
                 parsed = self._load_file(
                     session,
+                    run=run,
                     source=source,
                     filename=PurePosixPath(url).name,
                     content=file_response.content,
@@ -132,6 +134,7 @@ class SstRateCollector:
         filename: str,
         content: bytes,
         digest: str,
+        run=None,
     ) -> CollectionStats:
         stats = CollectionStats()
         csv_content = _csv_bytes(content, filename).decode("utf-8-sig", errors="replace")
@@ -236,7 +239,29 @@ class SstRateCollector:
                     session.add(fact)
                     facts[(natural_key, begin)] = fact
                     stats.inserted += 1
+                    record_fact_change(
+                        session,
+                        fact=fact,
+                        run=run,
+                        created=True,
+                    )
                 else:
+                    old_values = {
+                        field_name: getattr(fact, field_name)
+                        for field_name in (
+                            "rate",
+                            "flat_amount",
+                            "unit",
+                            "max_base",
+                            "min_base",
+                            "base_rule",
+                            "effective_to",
+                            "legal_citation",
+                            "source_locator",
+                            "status",
+                            "content_sha256",
+                        )
+                    }
                     changed = (
                         fact.rate != rate
                         or fact.effective_to != end
@@ -248,4 +273,12 @@ class SstRateCollector:
                     fact.source_locator = f"{source.url}#line={line_number}"
                     fact.raw_payload = payload
                     stats.updated += int(changed)
+                    if changed:
+                        record_fact_change(
+                            session,
+                            fact=fact,
+                            run=run,
+                            created=False,
+                            old_values=old_values,
+                        )
         return stats

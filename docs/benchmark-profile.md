@@ -60,3 +60,42 @@ Federal rate rows repeat across `p_code`, so the rate-match percentage is a row 
 measure, not a count of distinct laws. Non-federal SST rows are not credited merely because
 a state and rate exist; communications taxability and jurisdiction identity must first be
 normalized.
+
+## Customer-priority profile
+
+The invoice-tax path is:
+
+`apeiron_apeirontaxchargessummary.avalara_id` → benchmark rate,
+`customer_id` → customer, and customer `service_address_id` → ZIP/ZIP+4/p_code.
+
+There are 840 customers with at least one nonzero invoice-tax row. Of those, 565 are
+currently open, non-test, invoice-generating customers. A second freshness view contains
+426 active customers whose most recent nonzero tax invoice is within the trailing 12
+months.
+
+| Scope | Customers | p_codes | Customer ZIP recognized | Strict rate rows | Full p_codes |
+|---|---:|---:|---:|---:|---:|
+| Ever taxed | 840 | 317 | 785 / 840 (93.452%) | 3,221 / 22,514 (14.307%) | 0 / 317 |
+| Active and ever taxed | 565 | 210 | 543 / 565 (96.106%) | 1,986 / 15,187 (13.077%) | 0 / 210 |
+| Active and taxed in trailing 12 months | 426 | 132 | 420 / 426 (98.592%) | 1,044 / 9,351 (11.165%) | 0 / 132 |
+
+ZIP recognition is the strongest current dimension, but it remains statistical. Rule
+coverage is materially weaker, and no active-customer p_code has every Avalara rule
+matched.
+
+## Tax types and change history
+
+- Active rates contain 406 distinct numeric tax types, 588 tax-type/level pairs, and 591
+  distinct type/level/category/description signatures.
+- CTD's existing public `tax_type_code` values are SST jurisdiction component codes, not
+  Avalara tax-type IDs. No direct numeric equivalence should be inferred.
+- The app creates semantic crosswalk candidates from the complete benchmark signature,
+  then requires explicit review before they count as reviewed tax-type coverage.
+- Invoice tax summaries label charge mechanics as `percentage` or `perLine`; those values
+  are units, not the Avalara tax identity. The `avalara_id` join supplies identity when
+  present.
+
+The supplied Avalara changelog contains 114,384 rows through 2026-07-01, covering 15,037
+p_code/type/level rules, 439 p_codes, and 201 tax types. CTD incrementally mirrors it in
+`ctd_benchmark_rate_change`. Public-source hashes and normalized fact-field changes are
+kept separately, so licensed benchmark changes are never treated as upstream authority.

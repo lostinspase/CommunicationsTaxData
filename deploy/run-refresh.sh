@@ -32,6 +32,8 @@ case "$MODE" in
     "$CTD" collect --collector federal
     "$CTD" collect --collector monitor
     "$CTD" benchmark-sync
+    "$CTD" seed-filing-map
+    "$CTD" build-location-profiles
     ;;
   sst)
     "$CTD" seed-catalog

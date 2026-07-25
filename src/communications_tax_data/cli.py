@@ -19,6 +19,8 @@ from communications_tax_data.collectors import (
 from communications_tax_data.comparison import compare_coverage, write_exception_report
 from communications_tax_data.config import get_settings
 from communications_tax_data.db import create_schema, get_engine, session_scope
+from communications_tax_data.filing import seed_federal_filing_map
+from communications_tax_data.location_profiles import build_customer_location_profiles
 
 app = typer.Typer(no_args_is_help=True, help="Apeiron public tax-data collection agent.")
 
@@ -87,6 +89,24 @@ def benchmark_sync() -> None:
     create_schema()
     with session_scope() as session:
         counts = sync_benchmark(session)
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("seed-filing-map")
+def seed_filing_map() -> None:
+    """Seed source-verified federal filing entities, forms, and payment links."""
+    create_schema()
+    with session_scope() as session:
+        counts = seed_federal_filing_map(session)
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("build-location-profiles")
+def build_location_profiles() -> None:
+    """Build non-calculation-ready CTD identifiers for priority customer locations."""
+    create_schema()
+    with session_scope() as session:
+        counts = build_customer_location_profiles(session)
     typer.echo(json.dumps(counts, indent=2))
 
 

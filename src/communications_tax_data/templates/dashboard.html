@@ -72,6 +72,25 @@
     </div>
   </section>
   <section class="card" style="margin-top:18px">
+    <h2>Actual coverage — active customers with invoice tax</h2>
+    <table>
+      <thead><tr><th>Dimension</th><th class="num">Covered</th>
+        <th class="num">Required</th><th class="num">Coverage</th></tr></thead>
+      <tbody>
+      {% for row in priority_metrics %}
+        <tr><td>{{ row.dimension.replace("_"," ").title() }}</td>
+          <td class="num">{{ "{:,}".format(row.numerator) }}</td>
+          <td class="num">{{ "{:,}".format(row.denominator) }}</td>
+          <td class="num">{{ "%.2f%%"|format(row.percent) if row.percent is not none else "n/a" }}</td></tr>
+      {% else %}
+        <tr><td colspan="4">Run a benchmark comparison.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="note">ZIP figures are statistical recognition only. Rate, reviewed tax-type,
+      filing-map, and fully covered p_code figures are tracked independently.</p>
+  </section>
+  <section class="card" style="margin-top:18px">
     <h2>Recent collection runs</h2>
     <table>
       <thead><tr><th>Collector</th><th>Status</th><th>Started</th><th class="num">Seen</th>

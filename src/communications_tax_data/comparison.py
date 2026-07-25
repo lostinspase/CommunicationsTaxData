@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import re
 from collections import Counter
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy import or_, select
@@ -15,9 +17,13 @@ from communications_tax_data.models import (
     BenchmarkJurisdiction,
     BenchmarkRate,
     CoverageException,
+    CoverageMetric,
+    CustomerTaxNeed,
     PostalAssignment,
     Source,
     TaxFact,
+    TaxFilingMap,
+    TaxTypeCrosswalk,
     utcnow,
 )
 
@@ -60,6 +66,67 @@ def _exception_key(item: CoverageException) -> tuple:
     )
 
 
+def _signature(
+    tax_type: int,
+    tax_level: int,
+    tax_category: str | None,
+    tax_description: str | None,
+) -> str:
+    payload = "|".join(
+        [
+            str(tax_type),
+            str(tax_level),
+            tax_category or "",
+            tax_description or "",
+        ]
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _metric(
+    *,
+    run_id: int,
+    as_of: date,
+    scope: str,
+    dimension: str,
+    numerator: int,
+    denominator: int,
+    details: dict | None = None,
+) -> CoverageMetric:
+    percent = None
+    if denominator:
+        percent = (Decimal(numerator) * 100 / Decimal(denominator)).quantize(
+            Decimal("0.0001")
+        )
+    return CoverageMetric(
+        comparison_run_id=run_id,
+        as_of_date=as_of,
+        scope=scope,
+        dimension=dimension,
+        numerator=numerator,
+        denominator=denominator,
+        percent=percent,
+        details=details,
+    )
+
+
+def _filing_map_applies(
+    filing_map: TaxFilingMap,
+    benchmark: BenchmarkRate,
+    state_code: str | None,
+) -> bool:
+    if (
+        filing_map.benchmark_tax_type is not None
+        and filing_map.benchmark_tax_type != benchmark.tax_type
+    ):
+        return False
+    if filing_map.tax_level != benchmark.tax_level:
+        return False
+    if filing_map.state_code and filing_map.state_code != state_code:
+        return False
+    return filing_map.p_code is None or filing_map.p_code == benchmark.p_code
+
+
 def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
     run = start_run(session, "coverage-comparison")
     stats = CollectionStats()
@@ -90,6 +157,7 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
         session.scalars(select(BenchmarkRate).where(BenchmarkRate.active.is_(True)))
     )
     matched_rates = 0
+    matched_rate_ids: set[int] = set()
     for benchmark in active_rates:
         location = primary_locations.get(benchmark.p_code)
         state = location.state_code if location else None
@@ -107,6 +175,7 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
         ]
         if rate_matches:
             matched_rates += 1
+            matched_rate_ids.add(benchmark.benchmark_id)
             continue
         if candidates:
             exception_type = "RATE_MISMATCH"
@@ -184,6 +253,303 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
             )
         )
 
+    crosswalks = {
+        item.benchmark_signature: item
+        for item in session.scalars(select(TaxTypeCrosswalk))
+    }
+    filing_maps = list(
+        session.scalars(
+            select(TaxFilingMap).where(
+                TaxFilingMap.effective_from <= today,
+                or_(
+                    TaxFilingMap.effective_to.is_(None),
+                    TaxFilingMap.effective_to >= today,
+                ),
+                TaxFilingMap.mapping_status.in_(
+                    ("source_verified", "reviewed", "verified", "published")
+                ),
+            )
+        )
+    )
+    customers = list(session.scalars(select(CustomerTaxNeed)))
+    recent_cutoff = today - timedelta(days=365)
+    customer_scopes = {
+        "customer_historical": customers,
+        "customer_active": [item for item in customers if item.active_customer],
+        "customer_recent_12m": [
+            item
+            for item in customers
+            if item.last_tax_invoice and item.last_tax_invoice.date() >= recent_cutoff
+        ],
+        "customer_active_recent_12m": [
+            item
+            for item in customers
+            if item.active_customer
+            and item.last_tax_invoice
+            and item.last_tax_invoice.date() >= recent_cutoff
+        ],
+    }
+    rates_by_pcode: dict[int, list[BenchmarkRate]] = {}
+    for item in active_rates:
+        rates_by_pcode.setdefault(item.p_code, []).append(item)
+
+    coverage_metrics: list[CoverageMetric] = []
+    priority_summary: dict[str, dict[str, float | int | None]] = {}
+
+    def add_metric(
+        scope: str,
+        dimension: str,
+        numerator: int,
+        denominator: int,
+        details: dict | None = None,
+    ) -> None:
+        item = _metric(
+            run_id=run.id,
+            as_of=today,
+            scope=scope,
+            dimension=dimension,
+            numerator=numerator,
+            denominator=denominator,
+            details=details,
+        )
+        coverage_metrics.append(item)
+        priority_summary.setdefault(scope, {})[dimension] = (
+            float(item.percent) if item.percent is not None else None
+        )
+
+    add_metric(
+        "benchmark_total",
+        "strict_rate_rows",
+        matched_rates,
+        len(active_rates),
+        {
+            "method": (
+                "Current normalized public fact, semantic tax family, and exact rate. "
+                "Non-federal rules remain unmatched until taxability and jurisdiction "
+                "are normalized."
+            )
+        },
+    )
+    add_metric(
+        "benchmark_total",
+        "statistical_postal_rows",
+        postal_matched,
+        postal_seen,
+        {
+            "confidence": "statistical",
+            "warning": "Census ZCTA coverage is not ZIP+4 or rooftop sourcing.",
+        },
+    )
+    all_signatures = {
+        _signature(
+            item.tax_type,
+            item.tax_level,
+            item.tax_category,
+            item.tax_description,
+        )
+        for item in active_rates
+    }
+    candidate_signatures = {
+        signature
+        for signature in all_signatures
+        if signature in crosswalks and crosswalks[signature].ctd_tax_concept
+    }
+    reviewed_signatures = {
+        signature
+        for signature in all_signatures
+        if signature in crosswalks
+        and crosswalks[signature].mapping_status in {"reviewed", "verified", "published"}
+    }
+    add_metric(
+        "benchmark_total",
+        "tax_type_candidate_crosswalk",
+        len(candidate_signatures),
+        len(all_signatures),
+        {"warning": "Candidate semantic grouping is not a reviewed taxability mapping."},
+    )
+    add_metric(
+        "benchmark_total",
+        "tax_type_reviewed_crosswalk",
+        len(reviewed_signatures),
+        len(all_signatures),
+    )
+
+    active_missing_filing: dict[tuple[int, int, str | None], BenchmarkRate] = {}
+    for scope, scope_customers in customer_scopes.items():
+        pcodes = {item.p_code for item in scope_customers if item.p_code is not None}
+        postal_codes = {
+            item.postal_code for item in scope_customers if item.postal_code is not None
+        }
+        scope_rates = [
+            benchmark
+            for p_code in pcodes
+            for benchmark in rates_by_pcode.get(p_code, [])
+        ]
+        matched_scope_rates = [
+            item for item in scope_rates if item.benchmark_id in matched_rate_ids
+        ]
+        scope_signatures = {
+            _signature(
+                item.tax_type,
+                item.tax_level,
+                item.tax_category,
+                item.tax_description,
+            )
+            for item in scope_rates
+        }
+        scope_candidate_signatures = scope_signatures & candidate_signatures
+        scope_reviewed_signatures = scope_signatures & reviewed_signatures
+        pcodes_with_matches = {item.p_code for item in matched_scope_rates}
+        fully_covered_pcodes = {
+            p_code
+            for p_code in pcodes
+            if rates_by_pcode.get(p_code)
+            and all(
+                item.benchmark_id in matched_rate_ids
+                for item in rates_by_pcode[p_code]
+            )
+        }
+        benchmark_type_levels = {
+            (item.tax_type, item.tax_level) for item in scope_rates
+        }
+        matched_type_levels = {
+            (item.tax_type, item.tax_level) for item in matched_scope_rates
+        }
+        mapped_filing_rates: list[BenchmarkRate] = []
+        for benchmark in scope_rates:
+            state = (
+                primary_locations[benchmark.p_code].state_code
+                if benchmark.p_code in primary_locations
+                else None
+            )
+            if any(
+                _filing_map_applies(filing_map, benchmark, state)
+                for filing_map in filing_maps
+            ):
+                mapped_filing_rates.append(benchmark)
+            elif scope == "customer_active":
+                active_missing_filing.setdefault(
+                    (benchmark.tax_type, benchmark.tax_level, state), benchmark
+                )
+
+        add_metric(
+            scope,
+            "customer_pcode_available",
+            sum(item.p_code is not None for item in scope_customers),
+            len(scope_customers),
+            {"source": "Apeiron customer service-address benchmark p_code"},
+        )
+        add_metric(
+            scope,
+            "customer_zip_statistical",
+            sum(item.postal_code in known_zctas for item in scope_customers),
+            len(scope_customers),
+            {
+                "confidence": "statistical",
+                "warning": "Recognition of a ZIP is not jurisdiction assignment.",
+            },
+        )
+        add_metric(
+            scope,
+            "distinct_zip_statistical",
+            sum(item in known_zctas for item in postal_codes),
+            len(postal_codes),
+            {"confidence": "statistical"},
+        )
+        add_metric(
+            scope,
+            "strict_rate_rows",
+            len(matched_scope_rates),
+            len(scope_rates),
+        )
+        add_metric(
+            scope,
+            "pcode_any_strict_rate",
+            len(pcodes_with_matches),
+            len(pcodes),
+            {
+                "warning": (
+                    "A federal match makes this true; it does not mean a p_code is "
+                    "calculation-ready."
+                )
+            },
+        )
+        add_metric(
+            scope,
+            "pcode_fully_strict_rate",
+            len(fully_covered_pcodes),
+            len(pcodes),
+        )
+        add_metric(
+            scope,
+            "tax_type_level_any_strict_rate",
+            len(matched_type_levels),
+            len(benchmark_type_levels),
+            {"warning": "This is heuristic family/rate matching, not an approved crosswalk."},
+        )
+        add_metric(
+            scope,
+            "tax_type_candidate_crosswalk",
+            len(scope_candidate_signatures),
+            len(scope_signatures),
+            {"warning": "Candidate semantic grouping is not legally reviewed."},
+        )
+        add_metric(
+            scope,
+            "tax_type_reviewed_crosswalk",
+            len(scope_reviewed_signatures),
+            len(scope_signatures),
+        )
+        add_metric(
+            scope,
+            "filing_entity_rate_rows",
+            len(mapped_filing_rates),
+            len(scope_rates),
+        )
+
+    for (tax_type, tax_level, state), benchmark in active_missing_filing.items():
+        location = primary_locations.get(benchmark.p_code)
+        exceptions.append(
+            CoverageException(
+                comparison_run_id=run.id,
+                exception_type="MISSING_FILING_MAP",
+                severity="high" if tax_level <= 1 else "medium",
+                state_code=state,
+                jurisdiction_label=(
+                    ", ".join(
+                        part
+                        for part in [
+                            location.locality_name if location else None,
+                            location.county_name if location else None,
+                            state,
+                        ]
+                        if part
+                    )
+                    or None
+                ),
+                benchmark_rate_id=benchmark.benchmark_id,
+                summary=(
+                    f"No reviewed filing/payment entity map for Avalara tax type "
+                    f"{tax_type}, level {tax_level}, state {state or 'federal/unknown'}."
+                ),
+                details={
+                    "tax_type": tax_type,
+                    "tax_level": tax_level,
+                    "tax_category": benchmark.tax_category,
+                    "tax_description": benchmark.tax_description,
+                    "scope": "customer_active",
+                    "required_artifacts": [
+                        "filing entity/payee",
+                        "return or filing portal",
+                        "payment destination",
+                        "exemption form where applicable",
+                    ],
+                },
+            )
+        )
+
+    session.add_all(coverage_metrics)
+
     for source in session.scalars(
         select(Source).where(Source.active.is_(True), Source.parser.is_(None))
     ):
@@ -247,6 +613,9 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
         "new_exceptions": len(new_exceptions),
         "retained_exceptions": retained,
         "resolved_exceptions": resolved,
+        "coverage_metric_rows": len(coverage_metrics),
+        "customer_priority_coverage": priority_summary,
+        "reviewed_filing_maps": len(filing_maps),
         "methodology": (
             "Rate matching is intentionally strict. Non-federal facts require a normalized "
             "jurisdiction/taxability mapping before they count as matched."
@@ -269,12 +638,40 @@ def write_exception_report(session: Session, output_dir: Path) -> tuple[Path, Pa
             )
         )
     )
+    latest_metric_run = session.scalar(select(CoverageMetric.comparison_run_id).order_by(
+        CoverageMetric.comparison_run_id.desc()
+    ).limit(1))
+    metric_rows = (
+        list(
+            session.scalars(
+                select(CoverageMetric)
+                .where(CoverageMetric.comparison_run_id == latest_metric_run)
+                .order_by(CoverageMetric.scope, CoverageMetric.dimension)
+            )
+        )
+        if latest_metric_run is not None
+        else []
+    )
     summary = {
         "generated_at": utcnow().isoformat() + "Z",
         "total_open_exceptions": len(rows),
         "by_type": dict(Counter(row.exception_type for row in rows)),
         "by_severity": dict(Counter(row.severity for row in rows)),
         "by_state": dict(Counter(row.state_code or "FEDERAL/UNKNOWN" for row in rows)),
+        "coverage_run_id": latest_metric_run,
+        "coverage_metrics": {
+            scope: {
+                item.dimension: {
+                    "numerator": item.numerator,
+                    "denominator": item.denominator,
+                    "percent": float(item.percent) if item.percent is not None else None,
+                    "details": item.details,
+                }
+                for item in metric_rows
+                if item.scope == scope
+            }
+            for scope in sorted({item.scope for item in metric_rows})
+        },
         "limitations": [
             "Census ZCTAs approximate USPS ZIP Codes and do not provide ZIP+4 or rooftop sourcing.",
             (

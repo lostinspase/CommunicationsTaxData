@@ -45,6 +45,12 @@ Open <http://127.0.0.1:8080>. JSON endpoints are available at:
 - `/api/source-health?failed_only=true`
 - `/api/rates?state=WA&tax_family=sales_and_use`
 - `/api/exceptions?state=CA&exception_type=MISSING_PUBLIC_RATE`
+- `/api/coverage-metrics?scope=customer_active`
+- `/api/priority-locations?active_only=true&recent_days=365`
+- `/api/tax-types?mapping_status=proposed`
+- `/api/filing-map?tax_type=6`
+- `/api/changes?change_source=benchmark`
+- `/api/location-profiles?calculation_ready=false`
 
 ## Database configuration
 
@@ -81,6 +87,8 @@ uv run ctd init
 uv run ctd seed-catalog
 uv run ctd collect --collector all
 uv run ctd benchmark-sync
+uv run ctd seed-filing-map
+uv run ctd build-location-profiles
 uv run ctd compare
 uv run ctd report
 ```
@@ -99,7 +107,7 @@ bounded batches and one atomic transaction:
 uv run ctd bootstrap --source communications_tax_data.sqlite3 --replace
 ```
 
-`--replace` deletes and reloads only the nine `ctd_*` tables. It never touches existing
+`--replace` deletes and reloads only tables owned by the CTD model (`ctd_*`). It never touches existing
 Apeiron application tables.
 
 ## Data model
@@ -114,8 +122,21 @@ Apeiron application tables.
   effective dates.
 - `ctd_benchmark_jurisdiction` and `ctd_benchmark_rate`: replaceable snapshots of the two
   supplied commercial tables.
+- `ctd_benchmark_rate_change`: append-only mirror of the supplied Avalara changelog.
+- `ctd_customer_tax_need`: customer-number/location priority set derived from actual
+  nonzero invoice-tax history.
+- `ctd_coverage_metric`: versioned numerator, denominator, percentage, methodology, and
+  scope for total and customer-weighted comparisons.
+- `ctd_tax_type_crosswalk`: proposed and reviewed mappings from Avalara
+  type/level/description signatures to CTD concepts.
+- `ctd_tax_fact_change`: field-level history for changes to normalized public facts.
+- `ctd_filing_entity`, `ctd_filing_document`, and `ctd_tax_filing_map`: reporting entity,
+  payment recipient, return/portal, exemption document, cadence, due rule, and citation.
+- `ctd_location_profile` and `ctd_location_profile_member`: CTD-owned, effective-dated
+  jurisdiction-set identifiers. Current Census-derived profiles are explicitly
+  `calculation_ready=false`.
 - `ctd_coverage_exception`: versioned, row-level missing-rate, rate-mismatch, geographic,
-  and parser gaps.
+  parser, and filing-map gaps.
 
 The project uses a `ctd_` prefix so initialization is isolated from existing Apeiron
 tables. `ctd init` is idempotent and does not alter non-CTD tables.
@@ -132,6 +153,21 @@ The comparison is conservative:
 5. Previous open exceptions are retained as `superseded`; history is not destroyed.
 
 This prevents a high-looking completion percentage built from unlike records.
+
+Coverage is reported independently for the full benchmark universe; every customer that
+has ever had nonzero invoice tax; active/non-test/invoice-generating customers with tax
+history; and trailing-12-month customers with and without the active filter. Each scope
+separates ZIP recognition, p_code availability, exact rate rows, candidate/reviewed tax
+types, full p_code coverage, and filing-entity coverage.
+
+## p_code policy
+
+Avalara `p_code` remains an opaque benchmark/external identifier. CTD stores it for
+comparison and continuity with existing invoices, but does not invent values in
+Avalara's namespace. CTD generates deterministic `CTD-…` location-profile codes from an
+effective-dated jurisdiction composition. A calculation engine may use a profile only
+when `calculation_ready=true`; Census ZIP/ZCTA candidates remain false until an
+authoritative ZIP+4, rooftop, parcel, or reviewed legal assignment supports them.
 
 ## Scheduled operation
 

@@ -18,6 +18,7 @@ from communications_tax_data.collectors.base import (
     get_or_create_source,
     get_with_retry,
     http_client,
+    record_fact_change,
     record_response,
     start_run,
 )
@@ -42,6 +43,7 @@ MONTHS = {
 def _upsert_fact(
     session: Session,
     *,
+    run,
     jurisdiction: Jurisdiction,
     source,
     natural_key: str,
@@ -67,6 +69,7 @@ def _upsert_fact(
         )
     )
     created = fact is None
+    old_values = None
     if fact is None:
         fact = TaxFact(
             natural_key=natural_key,
@@ -87,6 +90,22 @@ def _upsert_fact(
         )
         session.add(fact)
     else:
+        old_values = {
+            field_name: getattr(fact, field_name)
+            for field_name in (
+                "rate",
+                "flat_amount",
+                "unit",
+                "max_base",
+                "min_base",
+                "base_rule",
+                "effective_to",
+                "legal_citation",
+                "source_locator",
+                "status",
+                "content_sha256",
+            )
+        }
         fact.rate = rate
         fact.effective_to = effective_to
         fact.legal_citation = citation
@@ -94,6 +113,13 @@ def _upsert_fact(
         fact.content_sha256 = digest
         fact.base_rule = base_rule
         fact.raw_payload = raw_payload
+    record_fact_change(
+        session,
+        fact=fact,
+        run=run,
+        created=created,
+        old_values=old_values,
+    )
     return created
 
 
@@ -174,6 +200,7 @@ class FederalCollector:
             citation = notice_cell.get_text(" ", strip=True) or "47 CFR § 54.709"
             created_fact = _upsert_fact(
                 session,
+                run=run,
                 jurisdiction=jurisdiction,
                 source=source,
                 natural_key=f"fcc:fusf:{year}:q{((month - 1) // 3) + 1}",
@@ -225,6 +252,7 @@ class FederalCollector:
         rate = Decimal(match.group(1)) / 100
         created_fact = _upsert_fact(
             session,
+            run=run,
             jurisdiction=jurisdiction,
             source=source,
             natural_key="irs:communications-excise:local-service",
@@ -283,6 +311,7 @@ class FederalCollector:
         for kind, rate, category in facts:
             created_fact = _upsert_fact(
                 session,
+                run=run,
                 jurisdiction=jurisdiction,
                 source=source,
                 natural_key=f"fcc:trs:2026-27:{kind}",

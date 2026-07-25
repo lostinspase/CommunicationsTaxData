@@ -223,6 +223,286 @@ class BenchmarkRate(Base):
     synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class BenchmarkRateChange(Base):
+    """Append-only mirror of the commercial benchmark's rate changelog."""
+
+    __tablename__ = "ctd_benchmark_rate_change"
+    __table_args__ = (
+        Index("ix_ctd_benchmark_change_run", "run_timestamp"),
+        Index(
+            "ix_ctd_benchmark_change_rule",
+            "p_code",
+            "tax_type",
+            "tax_level",
+            "run_timestamp",
+        ),
+    )
+
+    benchmark_change_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    source_timestamp: Mapped[datetime] = mapped_column(DateTime)
+    run_timestamp: Mapped[datetime] = mapped_column(DateTime)
+    p_code: Mapped[int] = mapped_column(BigInteger)
+    tax_category: Mapped[str | None] = mapped_column(String(100))
+    tax_description: Mapped[str | None] = mapped_column(String(160))
+    old_effective_date: Mapped[datetime] = mapped_column(DateTime)
+    new_effective_date: Mapped[datetime] = mapped_column(DateTime)
+    old_rate: Mapped[Decimal] = mapped_column(Numeric(18, 9))
+    new_rate: Mapped[Decimal] = mapped_column(Numeric(18, 9))
+    tax_type: Mapped[int] = mapped_column(Integer)
+    tax_level: Mapped[int] = mapped_column(Integer)
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class CustomerTaxNeed(Base):
+    """Customer-level priority snapshot derived from actual non-zero invoice tax."""
+
+    __tablename__ = "ctd_customer_tax_need"
+    __table_args__ = (
+        Index("ix_ctd_customer_need_priority", "active_customer", "last_tax_invoice"),
+        Index("ix_ctd_customer_need_location", "p_code", "postal_code"),
+    )
+
+    customer_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    customer_number: Mapped[int] = mapped_column(Integer, index=True)
+    p_code: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    postal_code: Mapped[str | None] = mapped_column(String(10), index=True)
+    plus_four: Mapped[str | None] = mapped_column(String(4))
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    country_code: Mapped[str | None] = mapped_column(String(3))
+    active_customer: Mapped[bool] = mapped_column(Boolean, index=True)
+    first_tax_invoice: Mapped[datetime | None] = mapped_column(DateTime)
+    last_tax_invoice: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    tax_charge_rows: Mapped[int] = mapped_column(BigInteger)
+    absolute_tax_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class TaxTypeCrosswalk(Base):
+    """Auditable mapping from benchmark type/level semantics to CTD concepts."""
+
+    __tablename__ = "ctd_tax_type_crosswalk"
+    __table_args__ = (
+        Index("ix_ctd_tax_crosswalk_type", "benchmark_tax_type", "benchmark_tax_level"),
+        Index("ix_ctd_tax_crosswalk_status", "mapping_status", "ctd_tax_concept"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    benchmark_signature: Mapped[str] = mapped_column(String(64), unique=True)
+    benchmark_tax_type: Mapped[int] = mapped_column(Integer)
+    benchmark_tax_level: Mapped[int] = mapped_column(Integer)
+    benchmark_tax_category: Mapped[str | None] = mapped_column(String(100))
+    benchmark_tax_description: Mapped[str | None] = mapped_column(String(160))
+    ctd_tax_concept: Mapped[str | None] = mapped_column(String(100), index=True)
+    service_category: Mapped[str | None] = mapped_column(String(100))
+    mapping_status: Mapped[str] = mapped_column(String(20), default="proposed")
+    mapping_method: Mapped[str] = mapped_column(String(60), default="normalized_description")
+    confidence: Mapped[str] = mapped_column(String(20), default="candidate")
+    legal_citation: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[str | None] = mapped_column(String(120))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class CoverageMetric(Base):
+    """One denominator/numerator result from a reproducible comparison run."""
+
+    __tablename__ = "ctd_coverage_metric"
+    __table_args__ = (
+        UniqueConstraint("comparison_run_id", "scope", "dimension", name="uq_ctd_metric_run"),
+        Index("ix_ctd_metric_latest", "scope", "dimension", "measured_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    comparison_run_id: Mapped[int] = mapped_column(
+        ForeignKey("ctd_collection_run.id"), index=True
+    )
+    measured_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    as_of_date: Mapped[date] = mapped_column(Date)
+    scope: Mapped[str] = mapped_column(String(40))
+    dimension: Mapped[str] = mapped_column(String(60))
+    numerator: Mapped[int] = mapped_column(BigInteger)
+    denominator: Mapped[int] = mapped_column(BigInteger)
+    percent: Mapped[Decimal | None] = mapped_column(Numeric(9, 4))
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+
+
+class TaxFactChange(Base):
+    """Append-only field-level audit trail for normalized public facts."""
+
+    __tablename__ = "ctd_tax_fact_change"
+    __table_args__ = (
+        Index("ix_ctd_fact_change_fact", "tax_fact_id", "detected_at"),
+        Index("ix_ctd_fact_change_run", "collection_run_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    tax_fact_id: Mapped[int] = mapped_column(ForeignKey("ctd_tax_fact.id"), index=True)
+    collection_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ctd_collection_run.id"), index=True
+    )
+    change_type: Mapped[str] = mapped_column(String(20))
+    natural_key: Mapped[str] = mapped_column(String(255), index=True)
+    effective_from: Mapped[date] = mapped_column(Date)
+    changed_fields: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    old_content_sha256: Mapped[str | None] = mapped_column(String(64))
+    new_content_sha256: Mapped[str] = mapped_column(String(64))
+    detected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    tax_fact: Mapped[TaxFact] = relationship()
+
+
+class FilingEntity(Base):
+    """Government or administrator that receives a return and/or payment."""
+
+    __tablename__ = "ctd_filing_entity"
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    entity_code: Mapped[str] = mapped_column(String(120), unique=True)
+    name: Mapped[str] = mapped_column(String(255))
+    payee_name: Mapped[str | None] = mapped_column(String(255))
+    entity_type: Mapped[str] = mapped_column(String(60))
+    tax_level: Mapped[int] = mapped_column(Integer, index=True)
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    jurisdiction_external_key: Mapped[str | None] = mapped_column(String(160), index=True)
+    website_url: Mapped[str] = mapped_column(Text)
+    filing_portal_url: Mapped[str | None] = mapped_column(Text)
+    payment_url: Mapped[str | None] = mapped_column(Text)
+    registration_url: Mapped[str | None] = mapped_column(Text)
+    mailing_address: Mapped[str | None] = mapped_column(Text)
+    legal_citation: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="proposed")
+    effective_from: Mapped[date] = mapped_column(Date, default=date(1900, 1, 1))
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class FilingDocument(Base):
+    """Return, instruction, worksheet, registration, or exemption document."""
+
+    __tablename__ = "ctd_filing_document"
+    __table_args__ = (
+        UniqueConstraint(
+            "filing_entity_id",
+            "document_type",
+            "form_number",
+            "effective_from",
+            name="uq_ctd_filing_document",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    filing_entity_id: Mapped[int] = mapped_column(ForeignKey("ctd_filing_entity.id"), index=True)
+    document_type: Mapped[str] = mapped_column(String(40), index=True)
+    form_number: Mapped[str] = mapped_column(String(80), default="")
+    title: Mapped[str] = mapped_column(String(255))
+    url: Mapped[str] = mapped_column(Text)
+    instructions_url: Mapped[str | None] = mapped_column(Text)
+    effective_from: Mapped[date] = mapped_column(Date, default=date(1900, 1, 1))
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(20), default="proposed")
+    source_locator: Mapped[str | None] = mapped_column(Text)
+    content_sha256: Mapped[str | None] = mapped_column(String(64))
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class TaxFilingMap(Base):
+    """Effective-dated rule connecting a tax identity/location to its filing entity."""
+
+    __tablename__ = "ctd_tax_filing_map"
+    __table_args__ = (
+        UniqueConstraint("natural_key", "effective_from", name="uq_ctd_filing_map"),
+        Index(
+            "ix_ctd_filing_map_lookup",
+            "benchmark_tax_type",
+            "tax_level",
+            "state_code",
+            "p_code",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    natural_key: Mapped[str] = mapped_column(String(255), index=True)
+    benchmark_tax_type: Mapped[int | None] = mapped_column(Integer)
+    tax_level: Mapped[int] = mapped_column(Integer)
+    ctd_tax_concept: Mapped[str] = mapped_column(String(100), index=True)
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    p_code: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    jurisdiction_external_key: Mapped[str | None] = mapped_column(String(160), index=True)
+    filing_entity_id: Mapped[int] = mapped_column(ForeignKey("ctd_filing_entity.id"), index=True)
+    payment_entity_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ctd_filing_entity.id"), index=True
+    )
+    return_document_id: Mapped[int | None] = mapped_column(ForeignKey("ctd_filing_document.id"))
+    exemption_document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ctd_filing_document.id")
+    )
+    filing_frequency: Mapped[str | None] = mapped_column(String(40))
+    due_rule: Mapped[str | None] = mapped_column(Text)
+    reporting_basis: Mapped[str | None] = mapped_column(Text)
+    payment_recipient: Mapped[str | None] = mapped_column(String(255))
+    legal_citation: Mapped[str | None] = mapped_column(Text)
+    mapping_status: Mapped[str] = mapped_column(String(20), default="proposed")
+    effective_from: Mapped[date] = mapped_column(Date, default=date(1900, 1, 1))
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class LocationProfile(Base):
+    """CTD-owned, effective-dated jurisdiction-set identifier (p_code equivalent)."""
+
+    __tablename__ = "ctd_location_profile"
+    __table_args__ = (
+        Index("ix_ctd_location_profile_postal", "postal_code", "plus_four"),
+        Index("ix_ctd_location_profile_benchmark", "benchmark_p_code"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    profile_code: Mapped[str] = mapped_column(String(40), unique=True)
+    composition_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    country_iso: Mapped[str] = mapped_column(String(3), default="USA")
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    postal_code: Mapped[str | None] = mapped_column(String(10), index=True)
+    plus_four: Mapped[str | None] = mapped_column(String(4))
+    benchmark_p_code: Mapped[int | None] = mapped_column(BigInteger)
+    assignment_method: Mapped[str] = mapped_column(String(80))
+    confidence: Mapped[str] = mapped_column(String(20))
+    calculation_ready: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(20), default="candidate")
+    valid_from: Mapped[date] = mapped_column(Date)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class LocationProfileMember(Base):
+    __tablename__ = "ctd_location_profile_member"
+    __table_args__ = (
+        UniqueConstraint(
+            "location_profile_id",
+            "jurisdiction_id",
+            "member_role",
+            name="uq_ctd_location_profile_member",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    location_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("ctd_location_profile.id"), index=True
+    )
+    jurisdiction_id: Mapped[int] = mapped_column(ForeignKey("ctd_jurisdiction.id"), index=True)
+    member_role: Mapped[str] = mapped_column(String(20), default="candidate")
+    allocation_ratio: Mapped[Decimal | None] = mapped_column(Numeric(12, 9))
+    evidence: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+
+
 class CoverageException(Base):
     __tablename__ = "ctd_coverage_exception"
     __table_args__ = (

@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import time
 from dataclasses import dataclass, field
+from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -10,7 +12,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from communications_tax_data.config import get_settings
-from communications_tax_data.models import CollectionRun, Source, SourceCheck, utcnow
+from communications_tax_data.models import (
+    CollectionRun,
+    Source,
+    SourceCheck,
+    TaxFact,
+    TaxFactChange,
+    utcnow,
+)
 
 
 @dataclass
@@ -163,3 +172,57 @@ def finish_run(
     run.records_updated = stats.updated
     run.details = stats.details or None
     run.error = error
+
+
+def _audit_value(value: Any) -> Any:
+    if isinstance(value, (date, Decimal)):
+        return str(value)
+    return value
+
+
+def record_fact_change(
+    session: Session,
+    *,
+    fact: TaxFact,
+    run: CollectionRun | None,
+    created: bool,
+    old_values: dict[str, Any] | None = None,
+) -> None:
+    """Append an explicit normalized-fact change without storing source content."""
+    fields = (
+        "rate",
+        "flat_amount",
+        "unit",
+        "max_base",
+        "min_base",
+        "base_rule",
+        "effective_to",
+        "legal_citation",
+        "source_locator",
+        "status",
+    )
+    before = old_values or {}
+    changed_fields: dict[str, dict[str, Any]] = {}
+    for field_name in fields:
+        old = before.get(field_name)
+        new = getattr(fact, field_name)
+        if created or old != new:
+            changed_fields[field_name] = {
+                "old": _audit_value(old),
+                "new": _audit_value(new),
+            }
+    old_hash = before.get("content_sha256")
+    if not created and not changed_fields and old_hash == fact.content_sha256:
+        return
+    session.add(
+        TaxFactChange(
+            tax_fact=fact,
+            collection_run_id=run.id if run else None,
+            change_type="insert" if created else "update",
+            natural_key=fact.natural_key,
+            effective_from=fact.effective_from,
+            changed_fields=changed_fields or None,
+            old_content_sha256=old_hash,
+            new_content_sha256=fact.content_sha256,
+        )
+    )
