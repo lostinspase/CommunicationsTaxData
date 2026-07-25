@@ -7,7 +7,7 @@ from collections import Counter
 from datetime import date
 from pathlib import Path
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from communications_tax_data.collectors.base import CollectionStats, finish_run, start_run
@@ -48,15 +48,22 @@ def _public_kind(fact: TaxFact) -> str | None:
     return None
 
 
+def _exception_key(item: CoverageException) -> tuple:
+    return (
+        item.exception_type,
+        item.benchmark_rate_id,
+        item.benchmark_jurisdiction_id,
+        item.public_tax_fact_id,
+        item.state_code,
+        item.jurisdiction_label,
+        item.summary,
+    )
+
+
 def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
     run = start_run(session, "coverage-comparison")
     stats = CollectionStats()
     now = utcnow()
-    session.execute(
-        update(CoverageException)
-        .where(CoverageException.status == "open")
-        .values(status="superseded", resolved_at=now)
-    )
     today = as_of or date.today()
     public_facts = list(
         session.scalars(
@@ -194,10 +201,35 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
             )
         )
 
-    session.add_all(exceptions)
+    existing_open = list(
+        session.scalars(
+            select(CoverageException)
+            .where(CoverageException.status == "open")
+            .order_by(CoverageException.id)
+        )
+    )
+    existing_by_key = {_exception_key(item): item for item in existing_open}
+    new_exceptions: list[CoverageException] = []
+    retained = 0
+    for candidate in exceptions:
+        existing = existing_by_key.pop(_exception_key(candidate), None)
+        if existing is None:
+            new_exceptions.append(candidate)
+            continue
+        existing.comparison_run_id = run.id
+        existing.severity = candidate.severity
+        existing.details = candidate.details
+        existing.resolved_at = None
+        retained += 1
+    resolved = len(existing_by_key)
+    for stale in existing_by_key.values():
+        stale.status = "superseded"
+        stale.resolved_at = now
+    session.add_all(new_exceptions)
     session.flush()
     stats.seen = len(active_rates) + postal_seen
-    stats.inserted = len(exceptions)
+    stats.inserted = len(new_exceptions)
+    stats.updated = retained + resolved
     counts = Counter(item.exception_type for item in exceptions)
     stats.details = {
         "active_benchmark_rates": len(active_rates),
@@ -212,6 +244,9 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
         ),
         "public_current_facts": len(public_facts),
         "exceptions": dict(counts),
+        "new_exceptions": len(new_exceptions),
+        "retained_exceptions": retained,
+        "resolved_exceptions": resolved,
         "methodology": (
             "Rate matching is intentionally strict. Non-federal facts require a normalized "
             "jurisdiction/taxability mapping before they count as matched."

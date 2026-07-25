@@ -94,3 +94,9 @@ def test_strict_comparison_matches_known_federal_rate_and_flags_unknown(session)
     assert result["matched_benchmark_rates"] == 1
     assert session.query(CoverageException).count() == 1
     assert session.query(CoverageException).one().exception_type == "MISSING_PUBLIC_RATE"
+
+    second = compare_coverage(session, as_of=date(2026, 7, 24))
+
+    assert second["new_exceptions"] == 0
+    assert second["retained_exceptions"] == 1
+    assert session.query(CoverageException).count() == 1
