@@ -29,6 +29,7 @@ PLACE_URL = (
     "https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/"
     "tab20_zcta520_place20_natl.txt"
 )
+ALLOCATION_QUANTUM = Decimal("0.000000001")
 
 
 class CensusRelationshipCollector:
@@ -137,7 +138,9 @@ class CensusRelationshipCollector:
                 stats.inserted += 1
             total_land = Decimal((row.get(total_key) or "0").strip() or "0")
             part_land = Decimal((row.get(part_key) or "0").strip() or "0")
-            allocation = part_land / total_land if total_land else None
+            allocation = (
+                (part_land / total_land).quantize(ALLOCATION_QUANTUM) if total_land else None
+            )
             assignment = existing_assignments.get((zcta, jurisdiction.id))
             if assignment is None:
                 assignment = PostalAssignment(

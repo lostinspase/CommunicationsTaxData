@@ -55,3 +55,20 @@ crontab -l
 ```
 
 The `.env` file and generated row-level reports are not committed to Git.
+
+## Initial deployment record
+
+Production was initialized on 2026-07-25:
+
+- Host alias: `cdrcost3.apeiron.io`
+- Database: `apeirondb` on MariaDB 10.6
+- Application commit installed: `1a22da3c6aacbad7bdad19831566539545e98d8e`
+- Initial atomic bootstrap: 569,736 rows across nine `ctd_*` tables
+- Dashboard/API health: passing on `127.0.0.1:8091`
+- Cron daemon and installed application schedule: active
+- Manual daily workflow: completed successfully in approximately 82 seconds
+- Production comparison: 39,337 active benchmark rates, 45,508 current public facts,
+  and 43,863 open exceptions
+
+Comparison runs preserve prior exceptions as `superseded`, so total exception-table rows
+grow over time while the dashboard reports only the current open set.
