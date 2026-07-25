@@ -110,9 +110,13 @@ CORE_SOURCES = [
         "name": "FCC CORES regulatory-fee filing and payment",
         "publisher": "Federal Communications Commission",
         "source_type": "filing_portal",
-        "url": "https://www.fcc.gov/licensing-databases/fees/cores-payment-system",
+        "url": "https://apps.fcc.gov/cores/userLogin.do",
         "tax_level": 0,
         "cadence_days": 30,
+        "notes": (
+            "CORES login is monitored directly; the FCC regulatory-fee instruction "
+            "page remains attached to the filing document."
+        ),
     },
     {
         "code": "fcc-911-fee-reports",

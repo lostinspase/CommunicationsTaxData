@@ -307,7 +307,7 @@ def seed_federal_filing_map(session: Session) -> dict[str, int]:
             payment_entity_id=trs_admin.id,
             return_document_id=form499a.id,
             exemption_document_id=None,
-            filing_frequency="annual_reporting_and_administrator_invoices",
+            filing_frequency="annual_and_invoiced",
             due_rule="Revenue is reported on FCC Form 499-A; the TRS administrator invoices.",
             reporting_basis="FCC Form 499-A TRS contribution base.",
             payment_recipient="Interstate TRS Fund Administrator (Rolka Loube)",
