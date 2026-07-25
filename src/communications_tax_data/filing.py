@@ -405,6 +405,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
         "documents_inserted": 0,
         "filing_maps_inserted": 0,
         "fact_maps_inserted": 0,
+        "fact_maps_removed": 0,
     }
     fact_keys = set(session.scalars(select(TaxFact.natural_key)))
 
@@ -507,19 +508,33 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
             citation="New York Tax Law § 186-f",
             service_category=category,
         )
-    for fact_key, category in (
+    legacy_mobile_map = session.scalar(
+        select(TaxFactBenchmarkMap).where(
+            TaxFactBenchmarkMap.natural_key
+            == (
+                "ny:avalara:14:1:statewide:"
+                "ny:dor:telecommunications-excise:mobile"
+            )
+        )
+    )
+    if legacy_mobile_map is not None:
+        session.delete(legacy_mobile_map)
+        counts["fact_maps_removed"] += 1
+    for tax_type, fact_key, category in (
         (
+            14,
             "ny:dor:telecommunications-excise:nonmobile",
             "nonmobile_telecommunications_provider_gross_receipts",
         ),
         (
+            275,
             "ny:dor:telecommunications-excise:mobile",
             "mobile_telecommunications_provider_gross_receipts",
         ),
     ):
         map_fact(
             state="NY",
-            tax_type=14,
+            tax_type=tax_type,
             tax_level=1,
             fact_key=fact_key,
             citation="New York Tax Law § 186-e",
@@ -786,6 +801,21 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
         frequency="annual",
         due_rule="File for each applicable corporation-tax year.",
         basis="Provider gross receipts under Tax Law § 186-e.",
+        citation="New York Tax Law § 186-e; Form CT-186-E instructions",
+    )
+    filing(
+        state="NY",
+        tax_type=275,
+        tax_level=1,
+        concept="new_york_mobile_telecommunications_excise",
+        entity=ny_dtf,
+        document=ct186e,
+        frequency="annual",
+        due_rule="File for each applicable corporation-tax year.",
+        basis=(
+            "Provider gross receipts from mobile telecommunications when the "
+            "customer's place of primary use is in New York."
+        ),
         citation="New York Tax Law § 186-e; Form CT-186-E instructions",
     )
     filing(
