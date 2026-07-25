@@ -109,3 +109,25 @@ Production was upgraded on 2026-07-25 to commit
   exceptions, including postal, filing-route, and parser gaps.
 - The dashboard and `/api/tax-types` were restarted and verified on
   `127.0.0.1:8091`. Seventeen automated tests and lint pass in the release workspace.
+
+## 50-state authority register
+
+Production was upgraded on 2026-07-25 to commit
+`971bbdc111036dd333a029931f82f45fe1eda3f4`:
+
+- All 50 official PUC/PSC/commission sites and all 50 state revenue/tax authority
+  sites are cataloged independently.
+- `/states` and `/api/state-authorities` report source health separately from
+  normalized-rule coverage.
+- California has two normalized CPUC concepts across sixteen effective versions and
+  one CDTFA communications sales/use taxability concept.
+- Pennsylvania has three normalized revenue concepts: the 50-mill telecommunications
+  gross-receipts tax, the 6% state sales/use rate, and telecommunications taxability
+  under 61 Pa. Code § 60.20.
+- The first production state run checked six parsed sources and inserted twenty fact
+  versions with twenty append-only change records.
+- A forced monitor checked 152 sources. Forty PUC/PSC sites and forty-three revenue
+  sites were reachable; the remaining sites reported explicit 403, TLS, connection
+  reset, or server-specific 404 failures for follow-up.
+- The 50-state HTML register, JSON summary, production comparison, 20 automated tests,
+  and lint all passed.
