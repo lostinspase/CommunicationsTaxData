@@ -19,6 +19,7 @@ from communications_tax_data.models import (
     Jurisdiction,
     PostalAssignment,
     Source,
+    SourceCheck,
     TaxFact,
 )
 
@@ -42,12 +43,22 @@ def health(session: Session = Depends(get_session)):
 
 def dashboard_data(session: Session) -> dict:
     today = date.today()
+    latest_source_check_ids = select(func.max(SourceCheck.id)).group_by(SourceCheck.source_id)
     current_fact_filter = (
         TaxFact.effective_from <= today,
         or_(TaxFact.effective_to.is_(None), TaxFact.effective_to >= today),
     )
     metrics = {
         "sources": session.scalar(select(func.count()).select_from(Source)) or 0,
+        "source_failures": session.scalar(
+            select(func.count())
+            .select_from(SourceCheck)
+            .where(
+                SourceCheck.id.in_(latest_source_check_ids),
+                SourceCheck.error.is_not(None),
+            )
+        )
+        or 0,
         "current_facts": session.scalar(
             select(func.count()).select_from(TaxFact).where(*current_fact_filter)
         )
@@ -150,6 +161,36 @@ def exceptions(
             "details": row.details,
         }
         for row in rows
+    ]
+
+
+@app.get("/api/source-health")
+def source_health(
+    failed_only: bool = False,
+    limit: int = Query(100, ge=1, le=1000),
+    session: Session = Depends(get_session),
+):
+    latest_check_ids = select(func.max(SourceCheck.id)).group_by(SourceCheck.source_id)
+    query = (
+        select(Source, SourceCheck)
+        .join(SourceCheck, SourceCheck.source_id == Source.id)
+        .where(SourceCheck.id.in_(latest_check_ids))
+    )
+    if failed_only:
+        query = query.where(SourceCheck.error.is_not(None))
+    rows = session.execute(query.order_by(Source.code).limit(limit))
+    return [
+        {
+            "source": source.code,
+            "name": source.name,
+            "state": source.state_code,
+            "url": source.url,
+            "last_checked_at": check.checked_at,
+            "status_code": check.status_code,
+            "changed": check.changed,
+            "error": check.error,
+        }
+        for source, check in rows
     ]
 
 

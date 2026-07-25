@@ -42,6 +42,7 @@ Open <http://127.0.0.1:8080>. JSON endpoints are available at:
 
 - `/api/health`
 - `/api/coverage`
+- `/api/source-health?failed_only=true`
 - `/api/rates?state=WA&tax_family=sales_and_use`
 - `/api/exceptions?state=CA&exception_type=MISSING_PUBLIC_RATE`
 
