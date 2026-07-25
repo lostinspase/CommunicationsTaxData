@@ -342,16 +342,27 @@ class StateRuleCollector:
             text,
             re.IGNORECASE,
         )
+        direct_telecom = bool(
+            re.search(
+                r"\btelephon(?:e|y|ic|ical)\b",
+                text,
+                re.IGNORECASE,
+            )
+        )
+        telecom_evidence = config.get("telecom_evidence", "direct_ordinance")
+        telecom_valid = {
+            "direct_ordinance": direct_telecom,
+            "incorporated_tax_law_186_a": bool(
+                re.search(r"§\s*186-a", text, re.IGNORECASE)
+            ),
+            "incorporated_village_law_5_530": bool(
+                re.search(r"§\s*5-530", text, re.IGNORECASE)
+            ),
+        }.get(telecom_evidence, False)
         required = (
             config["locality"].casefold() in text.casefold(),
             "gross income" in text.casefold(),
-            bool(
-                re.search(
-                    r"\btelephon(?:e|y|ic|ical)\b",
-                    text,
-                    re.IGNORECASE,
-                )
-            ),
+            telecom_valid,
             "territorial limits" in text.casefold()
             or "wholly consummated within" in text.casefold(),
         )
@@ -384,6 +395,9 @@ class StateRuleCollector:
             if is_village
             else "New York General City Law § 20-b"
         )
+        legal_citation = f"{config['local_citation']}; {enabling_citation}"
+        if config.get("additional_citation"):
+            legal_citation += f"; {config['additional_citation']}"
         base_rule = (
             "One-percent tax on qualifying utility gross income or gross operating "
             f"income within {config['locality']}. "
@@ -393,6 +407,14 @@ class StateRuleCollector:
                 "For telephony or telephone service, gross income includes only "
                 "receipts from local exchange service wholly consummated within "
                 "the village. "
+            )
+        elif telecom_evidence == "incorporated_tax_law_186_a":
+            base_rule += (
+                "The local code incorporates the definitions in Tax Law "
+                "§ 186-a(2), and General City Law § 20-b carries forward the "
+                "§ 186-a utility-tax framework as it existed on January 1, 1959. "
+                "Telecommunications coverage is incorporated by reference rather "
+                "than restated in the local article. "
             )
         else:
             base_rule += (
@@ -419,7 +441,7 @@ class StateRuleCollector:
             unit="percent_of_base",
             effective_from=date.fromisoformat(config["effective_from"]),
             effective_to=None,
-            citation=f"{config['local_citation']}; {enabling_citation}",
+            citation=legal_citation,
             locator=source.url,
             base_rule=base_rule,
             raw_payload={
@@ -431,6 +453,7 @@ class StateRuleCollector:
                 "filing_frequency": config["filing_frequency"],
                 "due_rule": config["due_rule"],
                 "customer_bill_treatment": config["customer_bill_treatment"],
+                "telecommunications_evidence": telecom_evidence,
             },
         )
         return 1, int(created)

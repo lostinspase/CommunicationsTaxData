@@ -379,6 +379,11 @@ NY_LOCAL_UTILITY_RULES = [
         "p_code": 2560500,
         "effective_from": "1937-07-01",
         "local_citation": "Johnstown City Code Chapter 278, Article I",
+        "telecom_evidence": "incorporated_tax_law_186_a",
+        "additional_citation": (
+            "New York Tax Law § 186-a(2), as incorporated under "
+            "General City Law § 20-b"
+        ),
         "filing_entity_name": "City of Johnstown — City Treasurer",
         "payment_recipient": "City Treasurer, City of Johnstown",
         "filing_frequency": "quarterly_or_small_utility_annual",
@@ -449,6 +454,7 @@ NY_LOCAL_UTILITY_RULES = [
         "p_code": 2589900,
         "effective_from": "1973-03-01",
         "local_citation": "Fort Plain Village Code Chapter 165, Article I",
+        "telecom_evidence": "incorporated_village_law_5_530",
         "filing_entity_name": "Village of Fort Plain — Village Treasurer",
         "payment_recipient": "Village Treasurer, Village of Fort Plain",
         "filing_frequency": "annual_or_elected_quarterly",

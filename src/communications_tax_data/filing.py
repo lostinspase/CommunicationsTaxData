@@ -627,12 +627,15 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
             if config["municipality_type"] == "village"
             else "New York General City Law § 20-b"
         )
+        legal_citation = f"{config['local_citation']}; {enabling_citation}"
+        if config.get("additional_citation"):
+            legal_citation += f"; {config['additional_citation']}"
         map_fact(
             state="NY",
             tax_type=14,
             tax_level=3,
             fact_key=fact_key,
-            citation=f"{config['local_citation']}; {enabling_citation}",
+            citation=legal_citation,
             service_category="local_telecommunications_utility_gross_receipts",
             p_code=config["p_code"],
             method="benchmark_pcode_to_adopted_local_ordinance",
@@ -882,6 +885,9 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
             if config["municipality_type"] == "village"
             else "New York General City Law § 20-b"
         )
+        legal_citation = f"{config['local_citation']}; {enabling_citation}"
+        if config.get("additional_citation"):
+            legal_citation += f"; {config['additional_citation']}"
         entity, created = _entity(
             session,
             f"ny-local-{locality_slug}-utility-tax",
@@ -896,7 +902,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
             payment_url=None,
             registration_url=None,
             mailing_address=None,
-            legal_citation=f"{config['local_citation']}; {enabling_citation}",
+            legal_citation=legal_citation,
             status="recipient_verified",
             effective_from=date.fromisoformat(config["effective_from"]),
         )
@@ -922,7 +928,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
             due_rule=config["due_rule"],
             reporting_basis=config["reporting_basis"],
             payment_recipient=config["payment_recipient"],
-            legal_citation=f"{config['local_citation']}; {enabling_citation}",
+            legal_citation=legal_citation,
             mapping_status="recipient_verified",
         )
         counts["filing_maps_inserted"] += int(created)

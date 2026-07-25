@@ -55,7 +55,8 @@ availability/content change and gives parsed rule sources a shorter cadence.
   state § 186-e provider tax or a statewide enabling law. The first demand-ranked
   tranche validates adopted one-percent ordinances for Johnstown, Amsterdam, Fort
   Plain, Saratoga Springs, Albany, Lake George, Scotia, and Clayton. City ordinances
-  include traditional telephony/telephone service within their local utility base.
+  generally state the traditional telephony/telephone utility base directly;
+  Johnstown instead incorporates Tax Law § 186-a definitions by reference.
   Village Law § 5-530 and the village ordinances limit telephony receipts to local
   exchange service wholly consummated within the village. Neither formulation is
   treated as automatic authority for every VoIP, wireless, or bundle variant.

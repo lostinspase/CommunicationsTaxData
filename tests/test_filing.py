@@ -58,13 +58,13 @@ def test_local_ny_utility_rule_maps_rate_and_recipient_without_claiming_form(ses
         select(Source).where(Source.code == config["source"]["code"])
     )
     run = start_run(session, "state-rules")
-    content = b"""
+    content = """
         <html><body>
         City of Johnstown. A tax equal to 1% of gross income is imposed on every
         utility within the territorial limits of the city. Gross operating income
-        includes telephony and telephone service.
+        definitions have the meanings in Subdivision 2 of § 186-a of the Tax Law.
         </body></html>
-    """
+    """.encode()
 
     seen, inserted = StateRuleCollector()._parse(
         session,
@@ -85,6 +85,7 @@ def test_local_ny_utility_rule_maps_rate_and_recipient_without_claiming_form(ses
     )
     assert str(fact.rate) == "0.010000000"
     assert "modern VoIP" in fact.base_rule
+    assert "incorporated by reference" in fact.base_rule
 
     first = seed_state_filing_and_benchmark_maps(session)
     session.flush()
