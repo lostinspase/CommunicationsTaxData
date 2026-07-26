@@ -160,3 +160,30 @@ Production was upgraded on 2026-07-26 through commit
   logs because resolver query strings can carry address or coordinate inputs.
 - `/locations`, `/api/location-resolver`, daily new/changed resolution, monthly forced
   revalidation, 27 automated tests, lint, and dashboard restart/health checks passed.
+
+## Daily active-address assessment
+
+Production was extended on 2026-07-26 through commit
+`7b81776ab92975d9bc64326d5daecd78c50d01b9` to cover every active, non-test,
+invoice-generating service address, including
+addresses that have not yet appeared on a taxed invoice:
+
+- The active universe is 704 distinct service addresses. The first expanded run added
+  162 addresses and 65 previously unseen CTD jurisdiction-set profiles.
+- Resolver coverage is 566/704 core geography results (80.40%), with 75 unmatched,
+  62 insufficient-input, and one ambiguous result. The active footprint uses 282 CTD
+  profiles; 213 source rows have ZIP+4 input.
+- Daily assessment run 64 correctly reports the 162-address new cohort. All 704 addresses
+  currently require some manual coverage and none is calculation-ready.
+- Address-route coverage is reported independently by level: federal public rules
+  8,448/19,008 and filing 19,008/19,008; state public rules 1,529/8,934 and filing
+  1,161/8,934; county 679/2,646 for both; municipal/special public rules 515/2,154 and
+  filing 366/2,154. These are summed distinct nonzero tax-type routes per address, not
+  unique tax-type counts.
+- `reports/location-assessment-summary.json` and the 704-row
+  `reports/location-assessment-gaps.csv` were generated. The gap CSV includes internal
+  source address ID, ZIP, CTD profile, benchmark p_code reference, resolver status, and
+  per-level missing type IDs; it excludes street and customer data.
+- `/location-assessments` and `/api/location-assessments` passed live checks. The daily
+  refresh now resolves addresses and writes this assessment after filing-map refresh;
+  28 automated tests and lint pass.
