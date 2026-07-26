@@ -21,6 +21,9 @@ Avalara as a source of law.
 
 The dashboard is `/tax-determination`; JSON is available at
 `/api/tax-determination`, `/api/product-taxonomy`, and `/api/taxability-rules`.
+The determination API omits the large per-route audit evidence by default. Request it
+for a bounded result set with `include_routes=true`; summary, gate, and gap fields are
+available without loading route evidence.
 
 ## Readiness gates
 

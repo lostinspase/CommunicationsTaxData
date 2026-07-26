@@ -21,6 +21,7 @@ from communications_tax_data.product_demand import seed_product_taxonomy
 from communications_tax_data.tax_determination import (
     assess_service_tax_demand,
     latest_service_tax_data,
+    product_taxonomy_data,
     write_service_tax_report,
 )
 from communications_tax_data.web import templates
@@ -286,6 +287,10 @@ def test_service_determination_calculates_only_after_all_gates_pass(session, tmp
     assert data["assessments"][0]["source_address_id"] == 9001
     assert "customer_id" not in data["assessments"][0]
     assert "customer_number" not in data["assessments"][0]
+    assert data["assessments"][0]["routes"] == []
+    evidence = latest_service_tax_data(session, manual_only=False, include_routes=True)
+    assert evidence["assessments"][0]["routes"][0]["public_fact"] == "test:ny:sales"
+    assert product_taxonomy_data(session)[0]["source_tax_group"] == "internet_access"
     rendered = templates.get_template("tax_determination.html").render(**data)
     assert "Tax Determination v1" in rendered
     assert "internet_access" in rendered

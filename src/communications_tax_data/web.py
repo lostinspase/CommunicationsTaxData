@@ -40,7 +40,10 @@ from communications_tax_data.models import (
     TaxTypeCrosswalk,
 )
 from communications_tax_data.state_authorities import STATE_AUTHORITIES
-from communications_tax_data.tax_determination import latest_service_tax_data
+from communications_tax_data.tax_determination import (
+    latest_service_tax_data,
+    product_taxonomy_data,
+)
 from communications_tax_data.taxonomy import FUSF_PUBLIC_SOURCES
 
 PACKAGE_DIR = Path(__file__).parent
@@ -732,6 +735,7 @@ def tax_determination(
     state: str | None = None,
     tax_group: str | None = None,
     manual_only: bool = True,
+    include_routes: bool = False,
     limit: int = Query(1000, ge=1, le=5000),
     session: Session = Depends(get_session),
 ):
@@ -741,12 +745,13 @@ def tax_determination(
         tax_group=tax_group,
         manual_only=manual_only,
         limit=limit,
+        include_routes=include_routes,
     )
 
 
 @app.get("/api/product-taxonomy")
 def product_taxonomy(session: Session = Depends(get_session)):
-    return latest_service_tax_data(session, limit=1)["taxonomy"]
+    return product_taxonomy_data(session)
 
 
 @app.get("/api/taxability-rules")

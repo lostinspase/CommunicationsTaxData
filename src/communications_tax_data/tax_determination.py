@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from communications_tax_data.collectors.base import CollectionStats, finish_run, start_run
 from communications_tax_data.models import (
@@ -967,6 +967,7 @@ def latest_service_tax_data(
     tax_group: str | None = None,
     manual_only: bool = True,
     limit: int = 1000,
+    include_routes: bool = False,
 ) -> dict[str, Any]:
     latest_run = session.scalar(
         select(ServiceTaxAssessment.assessment_run_id)
@@ -988,6 +989,7 @@ def latest_service_tax_data(
     all_rows = list(
         session.scalars(
             select(ServiceTaxAssessment)
+            .options(defer(ServiceTaxAssessment.route_details))
             .where(ServiceTaxAssessment.assessment_run_id == latest_run)
             .order_by(
                 ServiceTaxAssessment.is_new_demand.desc(),
@@ -1039,6 +1041,17 @@ def latest_service_tax_data(
         filtered = [row for row in filtered if row.source_tax_group == tax_group.lower()]
     if manual_only:
         filtered = [row for row in filtered if not row.calculation_ready]
+    selected_rows = filtered[:limit]
+    route_details_by_id: dict[int, list[dict[str, Any]]] = {}
+    if include_routes and selected_rows:
+        route_details_by_id = {
+            row_id: details or []
+            for row_id, details in session.execute(
+                select(ServiceTaxAssessment.id, ServiceTaxAssessment.route_details).where(
+                    ServiceTaxAssessment.id.in_([row.id for row in selected_rows])
+                )
+            )
+        }
 
     billed_total = sum((Decimal(row.trailing_billed_amount) for row in all_rows), Decimal())
     ready_total = sum(
@@ -1128,11 +1141,16 @@ def latest_service_tax_data(
                     else None
                 ),
                 "gap_codes": row.gap_codes or [],
-                "routes": row.route_details or [],
+                "routes": route_details_by_id.get(row.id, []),
             }
-            for row in filtered[:limit]
+            for row in selected_rows
         ],
     }
+
+
+def product_taxonomy_data(session: Session) -> list[dict[str, Any]]:
+    """Return product mapping coverage without loading assessment route evidence."""
+    return _taxonomy_summary(session)
 
 
 def _taxonomy_summary(session: Session) -> list[dict[str, Any]]:
