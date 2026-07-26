@@ -143,12 +143,28 @@ def test_resolver_reuses_jurisdiction_set_and_keeps_assignments_effective_dated(
 
 
 def test_resolver_records_insufficient_input_without_creating_profile(session):
+    session.add(
+        BenchmarkJurisdiction(
+            benchmark_id=2,
+            p_code=9002,
+            alternate=False,
+            country_iso="USA",
+            state_code="PA",
+            county_name="Some County",
+            locality_name="Somewhere",
+            zip_begin="19000",
+            zip_end="19000",
+            source_timestamp=datetime(2026, 7, 1),
+        )
+    )
+    session.flush()
     address = ResolverAddress(
         source_address_id=55,
         street=None,
         city="Nowhere",
         state_code="PA",
         postal_code="19000",
+        benchmark_p_code=9002,
     )
 
     def insufficient(_address: ResolverAddress) -> Resolution:
@@ -167,6 +183,9 @@ def test_resolver_records_insufficient_input_without_creating_profile(session):
     session.flush()
 
     assert result["insufficient_input"] == 1
+    assert result["benchmark_state_mismatch"] == 0
+    assert result["benchmark_county_mismatch"] == 0
+    assert result["benchmark_locality_mismatch"] == 0
     assert session.query(LocationProfile).count() == 0
     assignment = session.query(AddressAssignment).one()
     assert assignment.status == "insufficient_input"

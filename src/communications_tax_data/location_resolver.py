@@ -751,15 +751,13 @@ def _benchmark_comparison(
     localities = [
         member for member in members if member.role in {"incorporated_place", "county_subdivision"}
     ]
-    result["state_match"] = bool(
-        state and state.state_code.casefold() == (benchmark.state_code or "").casefold()
-    )
-    result["county_match"] = bool(
-        county and _normalize_jurisdiction_name(county.name) == _normalize_jurisdiction_name(
-            benchmark.county_name
+    if state:
+        result["state_match"] = (
+            state.state_code.casefold() == (benchmark.state_code or "").casefold()
         )
-    )
-    if benchmark.locality_name:
+    if county:
+        result["county_match"] = _county_names_match(county.name, benchmark.county_name)
+    if benchmark.locality_name and localities:
         result["locality_match"] = any(
             _normalize_jurisdiction_name(member.name)
             == _normalize_jurisdiction_name(benchmark.locality_name)
@@ -778,13 +776,35 @@ def _geography_name(row: dict[str, Any]) -> str:
 
 
 def _normalize_jurisdiction_name(value: Any) -> str:
-    text_value = re.sub(r"[^a-z0-9 ]", " ", str(value or "").casefold())
+    text_value = str(value or "").casefold().replace("’", "'").replace("'", "")
+    text_value = re.sub(r"[^a-z0-9 ]", " ", text_value)
     words = [
-        word
+        "st" if word == "saint" else word
         for word in text_value.split()
-        if word not in {"county", "parish", "borough", "city", "town", "village", "cdp"}
+        if word
+        not in {
+            "county",
+            "parish",
+            "borough",
+            "city",
+            "town",
+            "village",
+            "township",
+            "cdp",
+            "planning",
+            "region",
+        }
     ]
-    return " ".join(words)
+    return "".join(words)
+
+
+def _county_names_match(left: Any, right: Any) -> bool:
+    left_name = _normalize_jurisdiction_name(left)
+    right_name = _normalize_jurisdiction_name(right)
+    if left_name == right_name:
+        return True
+    # Dade County formally became Miami-Dade County; Avalara still uses both labels.
+    return {left_name, right_name} == {"dade", "miamidade"}
 
 
 def _normalize_address_part(value: Any) -> str:
