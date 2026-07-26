@@ -35,6 +35,10 @@ def _setup_logging() -> None:
         level=get_settings().log_level.upper(),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    # httpx INFO messages include full query strings. Resolver requests can carry
+    # service-address or coordinate inputs, so retain only warnings and failures.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 @app.command("init")
