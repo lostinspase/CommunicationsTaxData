@@ -36,6 +36,7 @@ REVIEWED_STATUSES = {"reviewed", "verified", "published", "source_verified"}
 PRODUCT_REVIEWED_STATUSES = {"reviewed", "published"}
 TAXABILITY_REVIEWED_STATUSES = {"reviewed", "published"}
 EXEMPTION_REVIEWED_STATUSES = {"reviewed", "verified", "published"}
+ASSESSMENT_FLUSH_SIZE = 20
 
 
 def assess_service_tax_demand(
@@ -294,6 +295,11 @@ def assess_service_tax_demand(
             )
             session.add(snapshot)
             inserted += 1
+            # Route evidence can be large. Keep MariaDB insert packets bounded instead
+            # of allowing SQLAlchemy to combine the entire daily snapshot into one
+            # insert-many statement.
+            if inserted % ASSESSMENT_FLUSH_SIZE == 0:
+                session.flush()
             amount = Decimal(demand.trailing_billed_amount or 0)
             total_billed += amount
             if result["calculation_ready"]:
