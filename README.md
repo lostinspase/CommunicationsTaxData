@@ -17,6 +17,7 @@ The first release intentionally reports what public data cannot reproduce.
 | IRS communications excise | Federal 3% current operational rule | `federal` | Bundled/long-distance treatment requires the recorded base rule |
 | SST rate files | 24 member states; state/county/city/special district sales/use components | `sst` | Does not establish whether a communications product is taxable |
 | Census ZCTA relationships | Nationwide ZCTA-to-county and ZCTA-to-place intersections | `census` | Statistical geography, not USPS ZIP+4 or rooftop assignment |
+| Census address/coordinate geography | Active taxed service-address footprint | `resolve-locations` | Resolves core geography; not proof of tax or special-district boundaries |
 | State authority register | 50 PUC/PSC and 50 revenue authority sites | `monitor` | Site health is not counted as rule coverage |
 | CA/NY/PA state rules | CPUC/CDTFA, NY DTF sales/wireless/excise, PA DOR | `state` | Source-verified vertical slices; none is yet calculation-ready |
 | NY municipal utility GRT | Eight demand-ranked adopted city/village ordinances | `state` | Rate/base and recipient verified; local return forms remain open |
@@ -57,6 +58,7 @@ Open <http://127.0.0.1:8080>. JSON endpoints are available at:
 - `/api/filing-map?tax_type=6`
 - `/api/changes?change_source=benchmark`
 - `/api/location-profiles?calculation_ready=false`
+- `/api/location-resolver`
 
 ## Database configuration
 
@@ -93,6 +95,7 @@ uv run ctd init
 uv run ctd seed-catalog
 uv run ctd collect --collector all
 uv run ctd benchmark-sync
+uv run ctd resolve-locations
 uv run ctd seed-filing-map
 uv run ctd build-location-profiles
 uv run ctd compare
@@ -152,6 +155,9 @@ Apeiron application tables.
 - `ctd_location_profile` and `ctd_location_profile_member`: CTD-owned, effective-dated
   jurisdiction-set identifiers. Current Census-derived profiles are explicitly
   `calculation_ready=false`.
+- `ctd_address_assignment`: privacy-limited, effective-dated links from an internal
+  service-address row to a CTD jurisdiction set. It stores the source row ID and an
+  address fingerprint for change detection, not a duplicate street address.
 - `ctd_coverage_exception`: versioned, row-level missing-rate, rate-mismatch, geographic,
   parser, and filing-map gaps.
 
@@ -181,10 +187,18 @@ types, full p_code coverage, and filing-entity coverage.
 
 Avalara `p_code` remains an opaque benchmark/external identifier. CTD stores it for
 comparison and continuity with existing invoices, but does not invent values in
-Avalara's namespace. CTD generates deterministic `CTD-…` location-profile codes from an
-effective-dated jurisdiction composition. A calculation engine may use a profile only
-when `calculation_ready=true`; Census ZIP/ZCTA candidates remain false until an
-authoritative ZIP+4, rooftop, parcel, or reviewed legal assignment supports them.
+Avalara's namespace. Location Resolver v1 generates deterministic `CTD-JUR-…` profile
+codes from the sorted core jurisdiction composition, so two addresses in the same
+jurisdiction set reuse one profile. It first uses existing coordinates with the Census
+geography endpoint, then the Census address-range endpoint. Results and Avalara
+state/county/locality comparisons are effective-dated.
+
+ZIP+4 is useful input, but it is not a nationwide equivalent to a tax jurisdiction.
+It may be a statutory safe harbor only where a governing state program publishes or
+accepts an applicable database. A calculation engine may use a profile only when
+`calculation_ready=true`; Census address, coordinate, ZIP/ZCTA, and Census-designated
+place evidence remain false until an authoritative tax-boundary or reviewed safe-harbor
+assignment supports them.
 
 ## Scheduled operation
 

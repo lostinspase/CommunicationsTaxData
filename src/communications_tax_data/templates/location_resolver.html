@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Location Resolver v1 · Communications Tax Data</title>
+  <style>
+    :root { color-scheme:light; --ink:#132521; --muted:#60716c; --line:#d9e2df;
+      --paper:#f5f7f2; --card:#fff; --green:#0d6753; --red:#a33a2b;
+      --red-soft:#f7e6df; --gold:#8a6208; --gold-soft:#fff2cc; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,ui-sans-serif,system-ui,sans-serif;
+      color:var(--ink); background:var(--paper); }
+    a { color:var(--green); text-underline-offset:2px; }
+    header { padding:28px max(24px,calc((100vw - 1180px)/2)); background:var(--ink); color:white; }
+    header a { color:#d6e7e1; }
+    header h1 { margin:18px 0 5px; font-size:clamp(27px,4vw,42px); letter-spacing:-.035em; }
+    header p { max-width:900px; margin:0; color:#b9cbc5; line-height:1.5; }
+    main { max-width:1180px; margin:0 auto; padding:24px 24px 60px; }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:12px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; }
+    .metric { padding:16px; }
+    .metric b { display:block; font-size:26px; letter-spacing:-.03em; }
+    .metric span,.note,.sub { color:var(--muted); font-size:12px; line-height:1.45; }
+    .section { margin-top:18px; padding:18px; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    h2 { margin:0 0 5px; font-size:18px; }
+    h3 { margin:18px 0 6px; font-size:14px; }
+    table { border-collapse:collapse; width:100%; margin-top:13px; font-size:13px; }
+    th,td { padding:10px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+    td.num,th.num { text-align:right; font-variant-numeric:tabular-nums; }
+    .pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px;
+      font-weight:650; background:#e5efeb; color:var(--green); white-space:nowrap; }
+    .gap { background:var(--red-soft); color:var(--red); }
+    .partial { background:var(--gold-soft); color:var(--gold); }
+    dl { display:grid; grid-template-columns:minmax(150px,.55fr) 1fr; gap:9px 18px; margin:14px 0 0; }
+    dt { color:var(--muted); font-size:12px; }
+    dd { margin:0; font-size:13px; line-height:1.45; }
+    @media(max-width:760px){ .grid{grid-template-columns:1fr;} dl{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+<header>
+  <a href="/">← Main dashboard</a> · <a href="/work-queue">Acquisition queue</a>
+  <h1>Location Resolver v1</h1>
+  <p>Effective-dated service-address assignments to deterministic CTD jurisdiction-set
+    profiles. This view is aggregate-only; it does not expose source address IDs, street
+    addresses, coordinates, fingerprints, or customer identities.</p>
+</header>
+<main>
+  <section class="metrics">
+    <div class="card metric"><b>{{ summary.current_assignments }}</b><span>current priority address assignments</span></div>
+    <div class="card metric"><b>{{ summary.resolved_core }}</b><span>core geography resolved</span></div>
+    <div class="card metric"><b>{{ "%.2f%%"|format(summary.resolved_percent) if summary.resolved_percent is not none else "n/a" }}</b><span>core resolution coverage</span></div>
+    <div class="card metric"><b>{{ summary.jurisdiction_profiles }}</b><span>unique CTD jurisdiction sets</span></div>
+    <div class="card metric"><b>{{ summary.with_zip_plus_four }}</b><span>inputs with ZIP+4</span></div>
+    <div class="card metric"><b>{{ summary.with_resolved_coordinates }}</b><span>resolved coordinate results</span></div>
+    <div class="card metric"><b>{{ summary.calculation_ready }}</b><span>calculation-ready assignments</span></div>
+  </section>
+
+  <section class="grid">
+    <div class="card section">
+      <h2>Resolver status</h2>
+      <p class="note">Core geography means state and county were identified. It is not a
+        claim that every communications-tax district is known.</p>
+      <table><thead><tr><th>Status</th><th class="num">Addresses</th></tr></thead>
+        <tbody>{% for row in statuses %}<tr><td><span class="pill {{ 'gap' if row.status in ('unmatched','error','ambiguous','insufficient_input') else '' }}">{{ row.status }}</span></td>
+          <td class="num">{{ row.count }}</td></tr>
+        {% else %}<tr><td colspan="2">Run <code>ctd resolve-locations</code>.</td></tr>{% endfor %}</tbody></table>
+    </div>
+    <div class="card section">
+      <h2>Assignment methods</h2>
+      <table><thead><tr><th>Method</th><th>Confidence</th><th class="num">Count</th><th>Tax-ready</th></tr></thead>
+        <tbody>{% for row in methods %}<tr><td>{{ row.method }}</td><td>{{ row.confidence }}</td>
+          <td class="num">{{ row.count }}</td><td><span class="pill {{ '' if row.calculation_ready else 'partial' }}">{{ "yes" if row.calculation_ready else "no" }}</span></td></tr>
+        {% else %}<tr><td colspan="4">No assignments yet.</td></tr>{% endfor %}</tbody></table>
+    </div>
+  </section>
+
+  <section class="card section">
+    <h2>State resolution coverage</h2>
+    <table><thead><tr><th>State</th><th class="num">Priority addresses</th>
+      <th class="num">Resolved core</th><th class="num">Jurisdiction sets</th></tr></thead>
+      <tbody>{% for row in states %}<tr><td><strong>{{ row.state }}</strong></td>
+        <td class="num">{{ row.addresses }}</td><td class="num">{{ row.resolved_core or 0 }}</td>
+        <td class="num">{{ row.profiles }}</td></tr>
+      {% else %}<tr><td colspan="4">No current assignments.</td></tr>{% endfor %}</tbody></table>
+  </section>
+
+  <section class="grid">
+    <div class="card section">
+      <h2>Latest run</h2>
+      {% if latest_run %}
+      <dl><dt>Run / status</dt><dd>#{{ latest_run.id }} · <span class="pill {{ latest_run.status }}">{{ latest_run.status }}</span></dd>
+        <dt>Started</dt><dd>{{ latest_run.started_at }}</dd>
+        <dt>Addresses seen</dt><dd>{{ latest_run.details.get('addresses_seen', latest_run.records_seen) }}</dd>
+        <dt>Geocoder requests</dt><dd>{{ latest_run.details.get('geocoder_requests', 0) }}</dd>
+        <dt>Skipped unchanged</dt><dd>{{ latest_run.details.get('addresses_skipped_unchanged', 0) }}</dd>
+        <dt>Inserted / superseded</dt><dd>{{ latest_run.details.get('assignments_inserted', 0) }} / {{ latest_run.details.get('assignments_superseded', 0) }}</dd>
+        <dt>Errors</dt><dd>{{ latest_run.details.get('errors', 0) }}</dd></dl>
+      <h3>Avalara comparison (diagnostic only)</h3>
+      <dl><dt>State match / mismatch</dt><dd>{{ latest_run.details.get('benchmark_state_match', 0) }} / {{ latest_run.details.get('benchmark_state_mismatch', 0) }}</dd>
+        <dt>County match / mismatch</dt><dd>{{ latest_run.details.get('benchmark_county_match', 0) }} / {{ latest_run.details.get('benchmark_county_mismatch', 0) }}</dd>
+        <dt>Locality match / mismatch</dt><dd>{{ latest_run.details.get('benchmark_locality_match', 0) }} / {{ latest_run.details.get('benchmark_locality_mismatch', 0) }}</dd></dl>
+      {% else %}<p class="note">No resolver run has completed.</p>{% endif %}
+    </div>
+    <div class="card section">
+      <h2>Calculation policy</h2>
+      <dl><dt>CTD profile</dt><dd>{{ policy.profile_role }}</dd>
+        <dt>ZIP+4</dt><dd>{{ policy.zip_plus_four }}</dd>
+        <dt>Census result</dt><dd>{{ policy.census }}</dd>
+        <dt>Tax-ready gate</dt><dd>{{ policy.calculation_gate }}</dd></dl>
+      <p class="note">Census designated places are retained as diagnostic evidence but
+        excluded from profile membership because a CDP is statistical, not an incorporated
+        taxing municipality. Special communications and 911 districts remain a v2 boundary layer.</p>
+    </div>
+  </section>
+</main>
+</body>
+</html>

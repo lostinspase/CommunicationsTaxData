@@ -8,7 +8,12 @@ from communications_tax_data.models import (
     TaxTypeCrosswalk,
 )
 from communications_tax_data.taxonomy import enrich_federal_usf_crosswalk
-from communications_tax_data.web import dashboard_data, source_health, tax_types
+from communications_tax_data.web import (
+    dashboard_data,
+    location_resolver_data,
+    source_health,
+    tax_types,
+)
 
 
 def test_dashboard_data_handles_empty_database(session):
@@ -18,12 +23,18 @@ def test_dashboard_data_handles_empty_database(session):
     assert data["metrics"]["source_failures"] == 0
     assert data["metrics"]["current_facts"] == 0
     assert data["metrics"]["benchmark_tax_types"] == 0
+    assert data["metrics"]["resolved_addresses"] == 0
     assert data["coverage"] == [
         {"level": 0, "name": "Federal", "public": 0, "benchmark": 0},
         {"level": 1, "name": "State", "public": 0, "benchmark": 0},
         {"level": 2, "name": "County", "public": 0, "benchmark": 0},
         {"level": 3, "name": "Municipal/special", "public": 0, "benchmark": 0},
     ]
+
+    resolver = location_resolver_data(session)
+    assert resolver["summary"]["current_assignments"] == 0
+    assert resolver["summary"]["resolved_percent"] is None
+    assert resolver["latest_run"] is None
 
 
 def test_source_health_reports_latest_failure(session):

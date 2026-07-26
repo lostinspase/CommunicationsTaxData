@@ -6,13 +6,14 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from communications_tax_data import __version__
 from communications_tax_data.acquisition import acquisition_queue_data
 from communications_tax_data.db import get_engine
 from communications_tax_data.models import (
+    AddressAssignment,
     BenchmarkJurisdiction,
     BenchmarkRate,
     BenchmarkRateChange,
@@ -110,6 +111,24 @@ def dashboard_data(session: Session) -> dict:
             select(func.count()).select_from(TaxFilingMap)
         )
         or 0,
+        "resolved_addresses": session.scalar(
+            select(func.count())
+            .select_from(AddressAssignment)
+            .where(
+                AddressAssignment.valid_to.is_(None),
+                AddressAssignment.status == "resolved_core",
+            )
+        )
+        or 0,
+        "resolver_calculation_ready": session.scalar(
+            select(func.count())
+            .select_from(AddressAssignment)
+            .where(
+                AddressAssignment.valid_to.is_(None),
+                AddressAssignment.calculation_ready.is_(True),
+            )
+        )
+        or 0,
     }
     level_names = {0: "Federal", 1: "State", 2: "County", 3: "Municipal/special", 4: "Other"}
     public_rows = dict(
@@ -192,6 +211,141 @@ def dashboard_data(session: Session) -> dict:
         "priority_metrics": priority_metrics,
         "exceptions": exceptions,
         "runs": runs,
+    }
+
+
+def location_resolver_data(session: Session) -> dict:
+    """Return aggregate resolver status without exposing service-address identities."""
+    current = AddressAssignment.valid_to.is_(None)
+    total = (
+        session.scalar(
+            select(func.count()).select_from(AddressAssignment).where(current)
+        )
+        or 0
+    )
+    status_rows = [
+        {"status": status, "count": count}
+        for status, count in session.execute(
+            select(AddressAssignment.status, func.count())
+            .where(current)
+            .group_by(AddressAssignment.status)
+            .order_by(func.count().desc(), AddressAssignment.status)
+        )
+    ]
+    method_rows = [
+        {
+            "method": method,
+            "confidence": confidence,
+            "count": count,
+            "calculation_ready": ready,
+        }
+        for method, confidence, ready, count in session.execute(
+            select(
+                AddressAssignment.assignment_method,
+                AddressAssignment.confidence,
+                AddressAssignment.calculation_ready,
+                func.count(),
+            )
+            .where(current)
+            .group_by(
+                AddressAssignment.assignment_method,
+                AddressAssignment.confidence,
+                AddressAssignment.calculation_ready,
+            )
+            .order_by(func.count().desc())
+        )
+    ]
+    state_rows = [
+        {
+            "state": state or "Unknown",
+            "addresses": addresses,
+            "resolved_core": resolved,
+            "profiles": profiles,
+        }
+        for state, addresses, resolved, profiles in session.execute(
+            select(
+                AddressAssignment.state_code,
+                func.count(),
+                func.sum(case((AddressAssignment.status == "resolved_core", 1), else_=0)),
+                func.count(func.distinct(AddressAssignment.location_profile_id)),
+            )
+            .where(current)
+            .group_by(AddressAssignment.state_code)
+            .order_by(AddressAssignment.state_code)
+        )
+    ]
+    latest_run = session.scalar(
+        select(CollectionRun)
+        .where(CollectionRun.collector == "location-resolver-v1")
+        .order_by(CollectionRun.started_at.desc(), CollectionRun.id.desc())
+    )
+    resolved = next(
+        (row["count"] for row in status_rows if row["status"] == "resolved_core"), 0
+    )
+    return {
+        "summary": {
+            "current_assignments": total,
+            "resolved_core": resolved,
+            "resolved_percent": round(100 * resolved / total, 2) if total else None,
+            "jurisdiction_profiles": session.scalar(
+                select(func.count(func.distinct(AddressAssignment.location_profile_id))).where(
+                    current,
+                    AddressAssignment.location_profile_id.is_not(None),
+                )
+            )
+            or 0,
+            "with_zip_plus_four": session.scalar(
+                select(func.count())
+                .select_from(AddressAssignment)
+                .where(current, AddressAssignment.plus_four.is_not(None))
+            )
+            or 0,
+            "with_resolved_coordinates": session.scalar(
+                select(func.count())
+                .select_from(AddressAssignment)
+                .where(current, AddressAssignment.latitude.is_not(None))
+            )
+            or 0,
+            "calculation_ready": session.scalar(
+                select(func.count())
+                .select_from(AddressAssignment)
+                .where(current, AddressAssignment.calculation_ready.is_(True))
+            )
+            or 0,
+        },
+        "statuses": status_rows,
+        "methods": method_rows,
+        "states": state_rows,
+        "latest_run": (
+            {
+                "id": latest_run.id,
+                "status": latest_run.status,
+                "started_at": latest_run.started_at,
+                "finished_at": latest_run.finished_at,
+                "records_seen": latest_run.records_seen,
+                "records_inserted": latest_run.records_inserted,
+                "records_updated": latest_run.records_updated,
+                "details": latest_run.details or {},
+                "error": latest_run.error,
+            }
+            if latest_run
+            else None
+        ),
+        "policy": {
+            "profile_role": "CTD jurisdiction-set identifier (p_code replacement)",
+            "zip_plus_four": (
+                "Useful address input and possible statutory safe harbor only where an "
+                "applicable state database authorizes it; not a national tax boundary."
+            ),
+            "census": (
+                "Official core geography evidence, but address-range and Census boundaries "
+                "do not by themselves prove communications-tax jurisdiction."
+            ),
+            "calculation_gate": (
+                "A profile becomes calculation-ready only after authoritative tax-boundary "
+                "or statutory safe-harbor evidence is attached."
+            ),
+        },
     }
 
 
@@ -402,9 +556,25 @@ def acquisition_queue_page(
     )
 
 
+@app.get("/locations", response_class=HTMLResponse)
+def location_resolver_page(
+    request: Request, session: Session = Depends(get_session)
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="location_resolver.html",
+        context=location_resolver_data(session),
+    )
+
+
 @app.get("/api/acquisition-queue")
 def acquisition_queue(session: Session = Depends(get_session)):
     return acquisition_queue_data(session)
+
+
+@app.get("/api/location-resolver")
+def location_resolver_status(session: Session = Depends(get_session)):
+    return location_resolver_data(session)
 
 
 @app.get("/api/state-authorities")

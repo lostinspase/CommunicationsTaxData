@@ -33,6 +33,7 @@ case "$MODE" in
     "$CTD" collect --collector state
     "$CTD" collect --collector monitor
     "$CTD" benchmark-sync
+    "$CTD" resolve-locations
     "$CTD" seed-filing-map
     "$CTD" build-location-profiles
     ;;
@@ -42,6 +43,7 @@ case "$MODE" in
     ;;
   census)
     "$CTD" collect --collector census
+    "$CTD" resolve-locations --force
     ;;
   *)
     echo "Unknown refresh mode: $MODE" >&2

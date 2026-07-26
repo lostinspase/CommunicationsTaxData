@@ -591,6 +591,62 @@ class LocationProfileMember(Base):
     evidence: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
 
+class AddressAssignment(Base):
+    """Effective-dated assignment of an internal address to a CTD jurisdiction set.
+
+    Raw street addresses are deliberately not copied into CTD.  The source row ID and
+    a fingerprint support change detection while the profile contains only public
+    jurisdiction identities.
+    """
+
+    __tablename__ = "ctd_address_assignment"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system",
+            "source_address_id",
+            "sourcing_role",
+            "valid_from",
+            name="uq_ctd_address_assignment_version",
+        ),
+        Index(
+            "ix_ctd_address_assignment_current",
+            "source_system",
+            "source_address_id",
+            "sourcing_role",
+            "valid_to",
+        ),
+        Index("ix_ctd_address_assignment_profile", "location_profile_id", "valid_to"),
+        Index("ix_ctd_address_assignment_status", "status", "calculation_ready"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    source_system: Mapped[str] = mapped_column(String(80))
+    source_address_id: Mapped[int] = mapped_column(BigInteger)
+    sourcing_role: Mapped[str] = mapped_column(String(40), default="service_address")
+    address_fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    country_iso: Mapped[str] = mapped_column(String(3), default="USA")
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    postal_code: Mapped[str | None] = mapped_column(String(10), index=True)
+    plus_four: Mapped[str | None] = mapped_column(String(4))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(18, 12))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(18, 12))
+    location_profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ctd_location_profile.id"), index=True
+    )
+    benchmark_p_code: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("ctd_source.id"), index=True)
+    assignment_method: Mapped[str] = mapped_column(String(80))
+    confidence: Mapped[str] = mapped_column(String(20))
+    calculation_ready: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(30), default="unmatched")
+    evidence: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    valid_from: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime)
+    resolved_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
 class CoverageException(Base):
     __tablename__ = "ctd_coverage_exception"
     __table_args__ = (

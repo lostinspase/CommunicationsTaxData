@@ -63,10 +63,24 @@ review before calculation use.
 ## Location identifiers
 
 Avalara p_codes are stored in the benchmark namespace. CTD's canonical identifier is a
-deterministic `CTD-…` profile code based on the effective jurisdiction composition.
-Current ZCTA relationships generate only statistical candidate profiles. They retain
-the benchmark p_code as a cross-reference when unambiguous, but remain
-`calculation_ready=false`.
+deterministic `CTD-JUR-…` profile code based only on the sorted effective jurisdiction
+composition—not on a street address, ZIP, or Avalara p_code. Therefore addresses with
+the same state/county/incorporated-place/county-subdivision set reuse one CTD profile.
+
+Location Resolver v1 reads only the service-address rows required by active, non-test,
+invoice-generating customers with nonzero invoice-tax history. It prefers an existing
+valid coordinate and otherwise calls the official Census current address-range
+geocoder. It creates an effective-dated `ctd_address_assignment`, retaining the source
+address row ID and a one-way address fingerprint instead of copying the street address.
+The dashboard and resolver API return aggregates only.
+
+Census state, county, incorporated-place, and county-subdivision identities become core
+profile members. A Census designated place is diagnostic evidence only because it is a
+statistical geography rather than an incorporated taxing municipality. Avalara
+state/county/locality names are compared after resolution as a benchmark diagnostic;
+they do not control profile assignment. All v1 assignments remain
+`calculation_ready=false` pending authoritative communications-tax, sales-tax, 911, and
+special-district boundary evidence or an applicable statutory ZIP safe harbor.
 
 ## Trust levels
 
@@ -74,6 +88,8 @@ the benchmark p_code as a cross-reference when unambiguous, but remain
 - `authoritative=false`: statistical or directory source useful for discovery/assignment,
   but not sufficient legal authority for tax calculation.
 - `confidence=statistical`: Census ZCTA relationships.
+- `confidence=coordinate` or `address_range`: Census Resolver v1 core-geography
+  evidence, still non-calculation-ready.
 - Future address assignments must use explicit values such as `zip4`, `parcel`, `rooftop`,
   or `manual_legal_review`; they must not silently upgrade Census evidence.
 

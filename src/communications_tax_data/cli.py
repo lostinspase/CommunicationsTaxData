@@ -25,6 +25,7 @@ from communications_tax_data.filing import (
     seed_state_filing_and_benchmark_maps,
 )
 from communications_tax_data.location_profiles import build_customer_location_profiles
+from communications_tax_data.location_resolver import resolve_priority_locations
 
 app = typer.Typer(no_args_is_help=True, help="Apeiron public tax-data collection agent.")
 
@@ -115,6 +116,27 @@ def build_location_profiles() -> None:
     create_schema()
     with session_scope() as session:
         counts = build_customer_location_profiles(session)
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("resolve-locations")
+def resolve_locations(
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Recheck unchanged current assignments against the public resolver.",
+    ),
+    limit: int | None = typer.Option(
+        None,
+        min=1,
+        help="Resolve at most this many priority addresses (useful for a staged run).",
+    ),
+) -> None:
+    """Resolve priority service addresses to effective-dated CTD jurisdiction sets."""
+    _setup_logging()
+    create_schema()
+    with session_scope() as session:
+        counts = resolve_priority_locations(session, force=force, limit=limit)
     typer.echo(json.dumps(counts, indent=2))
 
 

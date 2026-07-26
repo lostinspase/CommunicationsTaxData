@@ -9,6 +9,7 @@
 | Federal | FCC DA 26-646 | 30 days | 2026–27 TRS factors and distinct revenue bases |
 | State/local sales | SST rate directory | Quarterly, checked weekly | Four rate variants and effective periods |
 | Geography | 2020 Census ZCTA relationship files | Annual | County/place overlaps and allocation ratios |
+| Geography | Census current coordinate and address-range geocoder | Daily for new/changed priority addresses; forced monthly | Effective-dated core state/county/place/subdivision assignment to deterministic CTD profiles |
 | Federal filing | IRS Form 720/Publication 510, USAC Forms 499, FCC CORES | 14–30 days | Filing entity, payment recipient, return/portal, exemption guidance |
 | California PUC | CPUC surcharge and user-fee tables | Daily; source cadence 7 days | Flat per-line surcharge and gross-intrastate-revenue user-fee histories |
 | California revenue | CDTFA mobile-phone industry guidance | Daily; source cadence 14 days | Standalone service/data-plan taxability rule and device/prepaid distinction |
@@ -93,3 +94,10 @@ ZIP Codes are USPS delivery constructs. ZCTAs are Census statistical areas. Muni
 county, special district, 911, and rate-center boundaries can split a ZIP or fail to align
 with one another. The current Census collector is useful for discovering candidate
 jurisdictions and quantifying gaps; it is not sufficient for an invoice tax engine.
+
+Location Resolver v1 materially improves address-to-core-geography assignment over
+ZIP-centroid or ZCTA matching, but it does not change that calculation rule. Census
+geocoding uses address ranges and Census legal/statistical geographies, not tax authority
+boundaries. ZIP+4 is retained as input and completeness evidence, not treated as a
+national p_code replacement. State-authorized boundary databases and communications,
+911, and special-district overlays are the calculation-ready gate.
