@@ -27,6 +27,7 @@ from communications_tax_data.models import (
     TaxFact,
     TaxFactBenchmarkMap,
     TaxFilingMap,
+    TaxTypeCrosswalk,
     utcnow,
 )
 
@@ -128,6 +129,11 @@ def assess_service_locations(
         fact_maps_by_route[
             (mapping.benchmark_tax_level, mapping.benchmark_tax_type)
         ].append(mapping)
+    cited_crosswalk_routes = {
+        (mapping.benchmark_tax_level, mapping.benchmark_tax_type)
+        for mapping in session.scalars(select(TaxTypeCrosswalk))
+        if mapping.ctd_tax_concept and mapping.legal_citation
+    }
 
     filing_maps_by_level: dict[int, list[TaxFilingMap]] = defaultdict(list)
     recipient_maps_by_level: dict[int, list[TaxFilingMap]] = defaultdict(list)
@@ -219,6 +225,7 @@ def assess_service_locations(
                     )
                 ),
                 fact_maps_by_route=fact_maps_by_route,
+                cited_crosswalk_routes=cited_crosswalk_routes,
                 filing_maps=filing_maps_by_level.get(level, []),
                 recipient_maps=recipient_maps_by_level.get(level, []),
             )
@@ -341,6 +348,7 @@ def _assess_level(
     members: list[dict[str, Any]],
     benchmark_tax_types: set[int],
     fact_maps_by_route: dict[tuple[int, int], list[TaxFactBenchmarkMap]],
+    cited_crosswalk_routes: set[tuple[int, int]],
     filing_maps: list[TaxFilingMap],
     recipient_maps: list[TaxFilingMap],
 ) -> dict[str, Any]:
@@ -357,6 +365,7 @@ def _assess_level(
             _fact_map_applies(mapping, state_code, assignment.benchmark_p_code)
             for mapping in fact_maps_by_route.get((level, tax_type), [])
         )
+        or (level, tax_type) in cited_crosswalk_routes
     )
     filing_covered = sorted(
         tax_type
