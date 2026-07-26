@@ -21,6 +21,7 @@ from communications_tax_data.product_demand import seed_product_taxonomy
 from communications_tax_data.tax_determination import (
     assess_service_tax_demand,
     latest_service_tax_data,
+    write_service_tax_report,
 )
 from communications_tax_data.web import templates
 
@@ -339,3 +340,27 @@ def test_taxonomy_seeding_preserves_human_review(session):
     )
     assert mystery.service_category is None
     assert mystery.confidence == "unmapped"
+
+
+def test_gap_report_sorts_rows_with_and_without_source_addresses(tmp_path):
+    common = {
+        "new_demand": True,
+        "assessment_changed": True,
+        "trailing_billed_amount": "10.00",
+        "calculation_ready": False,
+    }
+    rows = [
+        {**common, "source_address_id": 20},
+        {**common, "source_address_id": ""},
+    ]
+
+    _, gaps_path = write_service_tax_report(
+        tmp_path,
+        run_id=1,
+        counts={},
+        report_rows=rows,
+    )
+
+    lines = gaps_path.read_text().splitlines()
+    assert lines[1].endswith(",")
+    assert lines[2].endswith(",20")

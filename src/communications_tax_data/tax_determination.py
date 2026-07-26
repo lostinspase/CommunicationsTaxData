@@ -953,7 +953,7 @@ def write_service_tax_report(
                     not row["new_demand"],
                     not row["assessment_changed"],
                     -Decimal(row["trailing_billed_amount"]),
-                    row["source_address_id"],
+                    int(row["source_address_id"] or 0),
                 ),
             )
         )
