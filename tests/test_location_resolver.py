@@ -193,3 +193,57 @@ def test_resolver_records_insufficient_input_without_creating_profile(session):
     assignment = session.query(AddressAssignment).one()
     assert assignment.status == "insufficient_input"
     assert assignment.location_profile_id is None
+
+
+def test_complete_footprint_run_retires_addresses_no_longer_needed(session):
+    addresses = [_address(201, "1 Broad St"), _address(202, "2 Broad St")]
+    resolve_priority_locations(session, addresses=addresses, geocoder=_resolution)
+    session.flush()
+
+    result = resolve_priority_locations(
+        session,
+        addresses=[addresses[0]],
+        geocoder=_resolution,
+        retire_missing=True,
+    )
+    session.flush()
+
+    assert result["addresses_skipped_unchanged"] == 1
+    assert result["assignments_retired"] == 1
+    current = (
+        session.query(AddressAssignment)
+        .filter(AddressAssignment.valid_to.is_(None))
+        .all()
+    )
+    assert [item.source_address_id for item in current] == [201]
+    retired = (
+        session.query(AddressAssignment)
+        .filter(AddressAssignment.source_address_id == 202)
+        .one()
+    )
+    assert retired.valid_to is not None
+
+
+def test_transient_error_preserves_last_known_assignment(session):
+    address = _address(301, "3 Broad St")
+    resolve_priority_locations(session, addresses=[address], geocoder=_resolution)
+    session.flush()
+    original = session.query(AddressAssignment).one()
+
+    def transient_error(_address: ResolverAddress) -> Resolution:
+        raise ValueError("temporary upstream response")
+
+    result = resolve_priority_locations(
+        session,
+        addresses=[address],
+        geocoder=transient_error,
+        force=True,
+    )
+    session.flush()
+
+    assert result["errors"] == 1
+    assert result["assignments_preserved_on_error"] == 1
+    assert result["assignments_superseded"] == 0
+    assert session.query(AddressAssignment).count() == 1
+    assert original.valid_to is None
+    assert original.status == "resolved_core"

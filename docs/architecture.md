@@ -73,6 +73,9 @@ valid coordinate and otherwise calls the official Census current address-range
 geocoder. It creates an effective-dated `ctd_address_assignment`, retaining the source
 address row ID and a one-way address fingerprint instead of copying the street address.
 The dashboard and resolver API return aggregates only.
+On an unrestricted full-footprint run, a current assignment whose source address is no
+longer in the priority population is closed with `valid_to`; limited and fixture runs do
+not retire unseen rows.
 
 Census state, county, incorporated-place, and county-subdivision identities become core
 profile members. A Census designated place is diagnostic evidence only because it is a
@@ -96,6 +99,8 @@ special-district boundary evidence or an applicable statutory ZIP safe harbor.
 ## Failure behavior
 
 - A collector parser mismatch fails the collection run and leaves prior facts intact.
+- A transient resolver error leaves the last current address assignment intact, marks
+  the run partial, and retries that address on the next daily run.
 - The monitor records one source failure without stopping checks of other sources.
 - Source hashes show content changes even when a parser yields the same normalized fact.
 - Exceptions are superseded, not deleted, on the next comparison.

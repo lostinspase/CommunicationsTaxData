@@ -310,8 +310,10 @@ def resolve_priority_locations(
     limit: int | None = None,
     addresses: Iterable[ResolverAddress | dict[str, Any]] | None = None,
     geocoder: Callable[[ResolverAddress], Resolution] | None = None,
+    retire_missing: bool | None = None,
 ) -> dict[str, Any]:
     """Resolve priority service addresses to deterministic CTD jurisdiction profiles."""
+    externally_supplied_addresses = addresses is not None
     if addresses is None:
         address_rows = load_priority_service_addresses(limit=limit)
     else:
@@ -321,6 +323,8 @@ def resolve_priority_locations(
         ]
         if limit is not None:
             address_rows = address_rows[:limit]
+    if retire_missing is None:
+        retire_missing = not externally_supplied_addresses and limit is None
     source, source_created = get_or_create_source(
         session,
         code="census-geocoder-current",
@@ -352,6 +356,8 @@ def resolve_priority_locations(
         "assignments_inserted": 0,
         "assignments_refreshed": 0,
         "assignments_superseded": 0,
+        "assignments_retired": 0,
+        "assignments_preserved_on_error": 0,
         "benchmark_state_match": 0,
         "benchmark_state_mismatch": 0,
         "benchmark_county_match": 0,
@@ -378,14 +384,18 @@ def resolve_priority_locations(
             )
         )
     }
+    seen_assignment_keys: set[tuple[int, str]] = set()
     try:
         for address in address_rows:
+            assignment_key = (address.source_address_id, SOURCING_ROLE)
+            seen_assignment_keys.add(assignment_key)
             fingerprint = address.fingerprint()
-            current = current_rows.get((address.source_address_id, SOURCING_ROLE))
+            current = current_rows.get(assignment_key)
             if (
                 current is not None
                 and current.address_fingerprint == fingerprint
                 and current.benchmark_p_code == address.benchmark_p_code
+                and current.status != "error"
                 and not force
             ):
                 counts["addresses_skipped_unchanged"] += 1
@@ -403,6 +413,11 @@ def resolve_priority_locations(
                     confidence="none",
                     evidence={"error_type": type(error).__name__},
                 )
+
+            if resolution.status == "error" and current is not None:
+                counts["errors"] += 1
+                counts["assignments_preserved_on_error"] += 1
+                continue
 
             profile = None
             profile_created = False
@@ -449,13 +464,20 @@ def resolve_priority_locations(
                 source_id=source.id,
                 evidence=evidence,
             )
-            current_rows[(address.source_address_id, SOURCING_ROLE)] = assignment
+            current_rows[assignment_key] = assignment
             counts[f"assignments_{action}"] += 1
             counts[resolution.status if resolution.status in counts else "errors"] += 1
             stats.inserted += int(action in {"inserted", "superseded"}) + int(
                 profile_created
             )
             stats.updated += int(action in {"refreshed", "superseded"})
+        if retire_missing:
+            retired_at = utcnow()
+            for assignment_key, current in current_rows.items():
+                if assignment_key not in seen_assignment_keys and current.valid_to is None:
+                    current.valid_to = retired_at
+                    counts["assignments_retired"] += 1
+                    stats.updated += 1
     finally:
         if census_geocoder is not None:
             counts["geocoder_requests"] = census_geocoder.requests
@@ -464,7 +486,9 @@ def resolve_priority_locations(
     now = utcnow()
     source.last_checked_at = now
     assignments_changed = bool(
-        counts["assignments_inserted"] or counts["assignments_superseded"]
+        counts["assignments_inserted"]
+        or counts["assignments_superseded"]
+        or counts["assignments_retired"]
     )
     if assignments_changed:
         source.last_changed_at = now

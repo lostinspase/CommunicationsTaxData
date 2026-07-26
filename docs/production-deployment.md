@@ -132,3 +132,29 @@ Production was upgraded on 2026-07-25 to commit
   reset, or server-specific 404 failures for follow-up.
 - The 50-state HTML register, JSON summary, production comparison, 20 automated tests,
   and lint all passed.
+
+## Location Resolver v1
+
+Production was upgraded on 2026-07-26 through commit
+`21b9fb6b79a54f1ed0ff8e73140bf35cf0cace73`:
+
+- 542 distinct current service addresses are in the active-customer, nonzero-invoice-tax
+  priority footprint; no customer identities or copied street addresses are exposed by
+  the resolver dashboard/API.
+- 465 addresses resolve to core Census state/county geography (85.79%): 93 from existing
+  coordinates and 372 from Census address-range matches. The footprint reuses 217
+  deterministic `CTD-JUR-*` jurisdiction-set profiles.
+- 69 addresses are unmatched, seven lack sufficient address/coordinate input, and one
+  is ambiguous. All are retained as explicit current assignment statuses.
+- 119 priority address rows have ZIP+4 input. ZIP+4 is recorded as evidence, not treated
+  as a nationwide tax-boundary or p_code equivalent.
+- Among comparable Avalara rows, state agreement is 462/462, county agreement is
+  435/462, and legal-place/county-subdivision agreement with the Avalara locality label
+  is 290/459. Differences remain diagnostic and do not control CTD assignment.
+- All 542 assignments remain `calculation_ready=false`; communications-tax, 911, sales-tax,
+  and special-district boundary evidence is still required.
+- Assignment versions carry collection-run evidence and supersede rather than overwrite
+  a changed address/profile result. HTTP client request URLs are suppressed from INFO
+  logs because resolver query strings can carry address or coordinate inputs.
+- `/locations`, `/api/location-resolver`, daily new/changed resolution, monthly forced
+  revalidation, 27 automated tests, lint, and dashboard restart/health checks passed.

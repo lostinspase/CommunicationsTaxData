@@ -98,7 +98,9 @@
         <dt>Geocoder requests</dt><dd>{{ latest_run.details.get('geocoder_requests', 0) }}</dd>
         <dt>Skipped unchanged</dt><dd>{{ latest_run.details.get('addresses_skipped_unchanged', 0) }}</dd>
         <dt>Inserted / superseded</dt><dd>{{ latest_run.details.get('assignments_inserted', 0) }} / {{ latest_run.details.get('assignments_superseded', 0) }}</dd>
-        <dt>Errors</dt><dd>{{ latest_run.details.get('errors', 0) }}</dd></dl>
+        <dt>Retired from priority footprint</dt><dd>{{ latest_run.details.get('assignments_retired', 0) }}</dd>
+        <dt>Errors</dt><dd>{{ latest_run.details.get('errors', 0) }}</dd>
+        <dt>Prior assignments preserved on error</dt><dd>{{ latest_run.details.get('assignments_preserved_on_error', 0) }}</dd></dl>
       <h3>Avalara comparison (diagnostic only)</h3>
       <dl><dt>State match / mismatch</dt><dd>{{ latest_run.details.get('benchmark_state_match', 0) }} / {{ latest_run.details.get('benchmark_state_mismatch', 0) }}</dd>
         <dt>County match / mismatch</dt><dd>{{ latest_run.details.get('benchmark_county_match', 0) }} / {{ latest_run.details.get('benchmark_county_mismatch', 0) }}</dd>
