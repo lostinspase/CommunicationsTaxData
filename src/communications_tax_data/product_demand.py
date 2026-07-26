@@ -337,16 +337,16 @@ def sync_product_demand(
                 """
                 SELECT c.user_id AS customer_id, c.customer_number,
                        c.service_address_id AS source_address_id,
-                       lines.source_product_id,
-                       lines.source_tax_group,
-                       lines.charge_type,
+                       billed_line.source_product_id,
+                       billed_line.source_tax_group,
+                       billed_line.charge_type,
                        1 AS active_customer,
-                       MIN(lines.invoice_at) AS first_invoice_at,
-                       MAX(lines.invoice_at) AS last_invoice_at,
-                       COUNT(DISTINCT lines.invoice_id) AS invoice_count,
+                       MIN(billed_line.invoice_at) AS first_invoice_at,
+                       MAX(billed_line.invoice_at) AS last_invoice_at,
+                       COUNT(DISTINCT billed_line.invoice_id) AS invoice_count,
                        COUNT(*) AS charge_rows,
-                       SUM(lines.quantity) AS quantity,
-                       SUM(ABS(lines.amount)) AS trailing_billed_amount
+                       SUM(billed_line.quantity) AS quantity,
+                       SUM(ABS(billed_line.amount)) AS trailing_billed_amount
                 FROM (
                     SELECT s.customer_id, s.invoice_id, i.stop AS invoice_at,
                            oi.product_id AS source_product_id,
@@ -394,15 +394,17 @@ def sync_product_demand(
                     FROM apeiron_apeironmsgchargessummary s
                     INNER JOIN apeiron_apeironinvoice i ON i.id = s.invoice_id
                     WHERE i.stop >= :trailing_start
-                ) lines
-                INNER JOIN apeiron_apeironcustomer c ON c.user_id = lines.customer_id
+                ) billed_line
+                INNER JOIN apeiron_apeironcustomer c
+                    ON c.user_id = billed_line.customer_id
                 WHERE c.closed = 0
                   AND c.test_account = 0
                   AND c.generate_invoices = 1
                 GROUP BY c.user_id, c.customer_number, c.service_address_id,
-                         lines.source_product_id, lines.source_tax_group, lines.charge_type
-                ORDER BY c.user_id, lines.source_tax_group, lines.charge_type,
-                         lines.source_product_id
+                         billed_line.source_product_id, billed_line.source_tax_group,
+                         billed_line.charge_type
+                ORDER BY c.user_id, billed_line.source_tax_group,
+                         billed_line.charge_type, billed_line.source_product_id
                 """
             )
             rows = connection.execute(demand_sql, {"trailing_start": trailing_start}).mappings()
