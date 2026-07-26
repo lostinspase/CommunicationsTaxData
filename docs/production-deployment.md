@@ -190,3 +190,32 @@ addresses that have not yet appeared on a taxed invoice:
 - `/location-assessments` and `/api/location-assessments` passed live checks. The daily
   refresh now resolves addresses and writes this assessment after filing-map refresh;
   28 automated tests and lint pass.
+
+## Service-aware tax determination v1
+
+Production was upgraded on 2026-07-26 through commit
+`6afba56c6bd93537e3fd2d618131f3dc4bcc0a86`:
+
+- The product-demand sync loaded 929 Apeiron products, 10,661 active customer tax
+  profiles, and 5,571 distinct trailing-year billed product/address/charge-type demands
+  across 601 service addresses and $8,143,741.79 of billed charges.
+- Thirty-one source tax groups are in the review queue. Thirty received known candidate
+  classifications and one remained unmapped. All candidates remain deliberately
+  `proposed`; collection never self-approves a legal product classification.
+- Assessment run 70 stored 5,571 immutable shadow snapshots. All are new on the first
+  run and all remain manual: product, location/sourcing, taxability, filing, and final
+  calculation are zero-ready until their legal evidence is reviewed. Exemption evidence
+  passes 5,571/5,571 because no applicable source exemption claim currently requires a
+  missing verified certificate in this demand set.
+- The largest exposure gaps are missing reviewed tax-concept maps (5,571 rows,
+  $8,143,741.79), unreviewed product mappings (4,368 rows, $8,021,311.72), missing
+  required-role sourcing assignments (2,932 rows, $6,855,124.66), and unverified tax
+  boundaries (2,639 rows, $1,288,617.13). One unmapped product group affects 1,203 rows
+  and $122,430.07.
+- MariaDB production compatibility fixes bound assessment insert batches and normalize
+  report sorting for unresolved address IDs. API summaries defer large route-evidence
+  JSON; detailed evidence is opt-in with `include_routes=true`.
+- Live checks returned the product taxonomy in 0.48 seconds, a one-row determination
+  summary in 0.91 seconds, opt-in route evidence in 1.10 seconds, and the HTML dashboard
+  in 1.12 seconds. Customer identities and street addresses are absent from these
+  outputs. Thirty-two automated tests and lint pass.
