@@ -33,10 +33,12 @@ case "$MODE" in
     "$CTD" collect --collector state
     "$CTD" collect --collector monitor
     "$CTD" benchmark-sync
+    "$CTD" sync-products
     "$CTD" resolve-locations
     "$CTD" seed-filing-map
     "$CTD" build-location-profiles
     "$CTD" assess-locations --output-dir "$APP_DIR/reports"
+    "$CTD" assess-services --output-dir "$APP_DIR/reports"
     ;;
   sst)
     "$CTD" seed-catalog

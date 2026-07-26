@@ -98,6 +98,27 @@ absence of tax. The dashboard/API and generated CSV identify the source address 
 state, ZIP, CTD profile, and p_code comparison reference without copying street or
 customer data.
 
+## Service-aware tax determination gate
+
+The daily product-demand sync imports tax-relevant catalog attributes, active customer
+exemption flags, and trailing-365-day billed recurring, nonrecurring, data, message, and
+voice-usage demand. It stores internal address/product keys and aggregate amounts without
+copying customer names or street addresses. New tax groups receive `proposed` taxonomy
+candidates; automated refreshes never promote or overwrite human review.
+
+`ctd_service_tax_assessment` evaluates each demand row independently through product
+classification, legally required sourcing, taxability, exemption evidence, filing, and
+calculation gates. A reviewed `ctd_taxability_rule` connects a CTD tax concept and service
+category to an exact public fact and citation. Benchmark type IDs reach that rule only
+through a reviewed crosswalk and remain comparison identifiers rather than legal facts.
+
+Source exemption booleans are warnings, not certificates. A claimed exemption affecting
+an otherwise taxable route requires current, verified `ctd_customer_exemption` evidence
+with matching geographic, tax-level, service, and effective-date scope. The shadow
+assessment never changes invoices. Aggregate tax estimates are produced only for simple
+percent-of-charge or flat-per-unit rules; line-sensitive calculations remain explicit
+gaps. See `docs/tax-determination-v1.md`.
+
 Census state, county, incorporated-place, and county-subdivision identities become core
 profile members. A Census designated place is diagnostic evidence only because it is a
 statistical geography rather than an incorporated taxing municipality. Avalara

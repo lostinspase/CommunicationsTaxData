@@ -20,6 +20,8 @@
 | New York provider tax | DTF Tax Expenditure Report and current CT-186-E materials | Daily; source cadence 30 days | § 186-e nonmobile/mobile rates, bases, recipient, and return |
 | New York municipal utility tax | Eight current city/village code articles | Daily; source cadence 14 days | One-percent local utility GRT, telecom base boundary, local recipient, and due rule |
 | Invoice demand | Apeiron invoice tax linked to benchmark rate IDs | Daily | Trailing-365-day and lifetime dollars/rows by customer, p_code, type, and level |
+| Product demand | Apeiron catalog plus recurring, nonrecurring, data, message, and usage charge summaries | Daily | Tax attributes and trailing-365-day billed demand by address/product/charge type |
+| Service tax assessment | Product demand + reviewed CTD rules, location, exemptions, and filing maps | Daily | Six-gate shadow readiness, exposure-weighted gaps, and supported public-tax estimates |
 
 ## Monitored discovery sources
 
@@ -76,7 +78,8 @@ availability/content change and gives parsed rule sources a shorter cadence.
 3. Add the return, payment portal/payee, exemption forms, and due rule for every reviewed
    tax-type/jurisdiction mapping.
 4. Add non-SST sales/use feeds for footprint states.
-5. Normalize product/service taxability, exemptions, caps, bases, and tax-on-tax rules.
+5. Review the seeded product taxonomy and add effective-dated service taxability,
+   exemption, cap, base, and tax-on-tax rules in billed-dollar order.
 6. License or procure ZIP+4/address boundary data and add 911/rate-center overlays.
 7. Expand local ordinance collectors in order of billed revenue and benchmark gap count.
 

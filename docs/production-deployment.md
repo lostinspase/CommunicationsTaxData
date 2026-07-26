@@ -27,8 +27,9 @@ Then open <http://127.0.0.1:8091>.
 The server clock is UTC:
 
 - Daily 06:17: source catalog, federal and validated state facts, due-source monitoring,
-  benchmark refresh, new/changed active-address resolution, daily level-by-level address
-  assessment, comparison, and exception reports.
+  benchmark refresh, product-demand sync, new/changed active-address resolution, daily
+  level-by-level address assessment, service-aware shadow determination, comparison, and
+  exception reports.
 - Sunday 07:37: SST state/local sales and use files, comparison, and report.
 - First day of each month 08:57: Census relationships, comparison, and report.
 - Every five minutes and at reboot: ensure the loopback dashboard is running.
@@ -48,6 +49,8 @@ deploy/run-refresh.sh daily
 curl -fsS http://127.0.0.1:8091/api/health
 curl -fsS http://127.0.0.1:8091/api/location-resolver
 curl -fsS http://127.0.0.1:8091/api/location-assessments?new_only=true
+curl -fsS http://127.0.0.1:8091/api/tax-determination?manual_only=true
+curl -fsS http://127.0.0.1:8091/api/product-taxonomy
 
 # Inspect recent activity
 tail -100 logs/refresh.log

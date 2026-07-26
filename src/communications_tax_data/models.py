@@ -441,6 +441,220 @@ class TaxFactChange(Base):
     tax_fact: Mapped[TaxFact] = relationship()
 
 
+class ProductTaxonomyMap(Base):
+    """Effective-dated mapping from an Apeiron tax group to a CTD service class."""
+
+    __tablename__ = "ctd_product_taxonomy_map"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_system",
+            "source_tax_group",
+            "effective_from",
+            name="uq_ctd_product_taxonomy_map",
+        ),
+        Index(
+            "ix_ctd_product_taxonomy_current",
+            "source_system",
+            "source_tax_group",
+            "effective_from",
+            "effective_to",
+        ),
+        Index(
+            "ix_ctd_product_taxonomy_review",
+            "mapping_status",
+            "service_category",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    source_system: Mapped[str] = mapped_column(String(80), default="apeiron_product")
+    source_tax_group: Mapped[str] = mapped_column(String(100))
+    service_category: Mapped[str | None] = mapped_column(String(100), index=True)
+    default_sourcing_role: Mapped[str | None] = mapped_column(String(40))
+    mapping_status: Mapped[str] = mapped_column(String(30), default="proposed", index=True)
+    mapping_method: Mapped[str] = mapped_column(String(60), default="internal_tax_group_candidate")
+    confidence: Mapped[str] = mapped_column(String(20), default="candidate")
+    source_reference: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    effective_from: Mapped[date] = mapped_column(Date, default=date(1900, 1, 1))
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    reviewed_by: Mapped[str | None] = mapped_column(String(120))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class ProductCatalogItem(Base):
+    """Replaceable snapshot of tax-relevant Apeiron product attributes."""
+
+    __tablename__ = "ctd_product_catalog_item"
+    __table_args__ = (Index("ix_ctd_product_catalog_tax_group", "source_tax_group", "active"),)
+
+    source_product_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    sku: Mapped[str] = mapped_column(String(64))
+    title: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean, index=True)
+    product_type: Mapped[str | None] = mapped_column(String(200))
+    source_tax_type: Mapped[str | None] = mapped_column(String(200))
+    source_tax_group: Mapped[str] = mapped_column(String(100), index=True)
+    billing_type: Mapped[str | None] = mapped_column(String(32))
+    charge_frequency: Mapped[str | None] = mapped_column(String(32))
+    report_category: Mapped[str | None] = mapped_column(String(100))
+    product_platform: Mapped[str | None] = mapped_column(String(100))
+    interstate_percent: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    intrastate_percent: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    voice_percent: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    sms_percent: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    wireless_data_percent: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    transport_percent: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class CustomerTaxProfile(Base):
+    """Privacy-limited snapshot of source tax flags used as an exemption warning."""
+
+    __tablename__ = "ctd_customer_tax_profile"
+    __table_args__ = (
+        Index("ix_ctd_customer_tax_profile_address", "source_address_id"),
+        Index("ix_ctd_customer_tax_profile_active", "active_customer", "customer_number"),
+    )
+
+    customer_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    customer_number: Mapped[int] = mapped_column(Integer, index=True)
+    source_address_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    active_customer: Mapped[bool] = mapped_column(Boolean, index=True)
+    source_tax_exempt: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_tax_exempt_federal: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_tax_exempt_state: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_tax_exempt_local: Mapped[bool] = mapped_column(Boolean, default=False)
+    evidence_status: Mapped[str] = mapped_column(String(30), default="source_flag_only")
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class CustomerExemption(Base):
+    """Structured exemption evidence; document contents remain outside CTD."""
+
+    __tablename__ = "ctd_customer_exemption"
+    __table_args__ = (
+        UniqueConstraint(
+            "customer_id",
+            "exemption_type",
+            "tax_level",
+            "state_code",
+            "jurisdiction_external_key",
+            "service_category",
+            "valid_from",
+            name="uq_ctd_customer_exemption_scope",
+        ),
+        Index(
+            "ix_ctd_customer_exemption_current",
+            "customer_id",
+            "status",
+            "valid_from",
+            "valid_to",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    customer_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    exemption_type: Mapped[str] = mapped_column(String(60))
+    tax_level: Mapped[int | None] = mapped_column(Integer, index=True)
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    jurisdiction_external_key: Mapped[str | None] = mapped_column(String(160), index=True)
+    service_category: Mapped[str | None] = mapped_column(String(100), index=True)
+    document_reference: Mapped[str | None] = mapped_column(String(255))
+    certificate_reference: Mapped[str | None] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(30), default="proposed", index=True)
+    valid_from: Mapped[date] = mapped_column(Date)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    verified_by: Mapped[str | None] = mapped_column(String(120))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class ServiceProductDemand(Base):
+    """Trailing-period billed product demand used to prioritize tax determinations."""
+
+    __tablename__ = "ctd_service_product_demand"
+    __table_args__ = (
+        Index(
+            "ix_ctd_service_product_demand_priority",
+            "active_customer",
+            "trailing_billed_amount",
+        ),
+        Index(
+            "ix_ctd_service_product_demand_address",
+            "source_address_id",
+            "source_tax_group",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    demand_key: Mapped[str] = mapped_column(String(64), unique=True)
+    customer_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    customer_number: Mapped[int] = mapped_column(Integer, index=True)
+    source_address_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    source_product_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    source_tax_group: Mapped[str] = mapped_column(String(100), index=True)
+    charge_type: Mapped[str] = mapped_column(String(40), index=True)
+    active_customer: Mapped[bool] = mapped_column(Boolean, index=True)
+    first_invoice_at: Mapped[datetime] = mapped_column(DateTime)
+    last_invoice_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    invoice_count: Mapped[int] = mapped_column(BigInteger)
+    charge_rows: Mapped[int] = mapped_column(BigInteger)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(24, 6), default=Decimal("0"))
+    trailing_billed_amount: Mapped[Decimal] = mapped_column(Numeric(24, 2), index=True)
+    trailing_window_start: Mapped[date] = mapped_column(Date)
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class TaxabilityRule(Base):
+    """Reviewed service-level applicability and calculation rule for one tax concept."""
+
+    __tablename__ = "ctd_taxability_rule"
+    __table_args__ = (
+        UniqueConstraint("natural_key", "effective_from", name="uq_ctd_taxability_rule"),
+        Index(
+            "ix_ctd_taxability_rule_lookup",
+            "ctd_tax_concept",
+            "tax_level",
+            "state_code",
+            "service_category",
+        ),
+        Index("ix_ctd_taxability_rule_review", "review_status", "effective_to"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    natural_key: Mapped[str] = mapped_column(String(255), index=True)
+    ctd_tax_concept: Mapped[str] = mapped_column(String(100), index=True)
+    tax_fact_natural_key: Mapped[str | None] = mapped_column(String(255), index=True)
+    tax_level: Mapped[int] = mapped_column(Integer, index=True)
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    p_code: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    jurisdiction_external_key: Mapped[str | None] = mapped_column(String(160), index=True)
+    service_category: Mapped[str] = mapped_column(String(100), index=True)
+    charge_type: Mapped[str | None] = mapped_column(String(40))
+    taxability: Mapped[str] = mapped_column(String(30), index=True)
+    sourcing_role: Mapped[str] = mapped_column(String(40), default="service_address")
+    calculation_method: Mapped[str] = mapped_column(String(40), default="manual")
+    taxable_percentage: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    base_rule: Mapped[str | None] = mapped_column(Text)
+    filing_required: Mapped[bool] = mapped_column(Boolean, default=True)
+    legal_citation: Mapped[str] = mapped_column(Text)
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("ctd_source.id"), index=True)
+    review_status: Mapped[str] = mapped_column(String(30), default="proposed", index=True)
+    confidence: Mapped[str] = mapped_column(String(20), default="candidate")
+    effective_from: Mapped[date] = mapped_column(Date)
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    reviewed_by: Mapped[str | None] = mapped_column(String(120))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
 class FilingEntity(Base):
     """Government or administrator that receives a return and/or payment."""
 
@@ -707,6 +921,72 @@ class LocationAssessment(Base):
     gap_count: Mapped[int] = mapped_column(Integer, default=0)
     manual_gap_levels: Mapped[list[int] | None] = mapped_column(JSON)
     level_details: Mapped[dict[str, Any]] = mapped_column(JSON)
+    assessment_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ServiceTaxAssessment(Base):
+    """Daily shadow determination for one billed product/address demand row."""
+
+    __tablename__ = "ctd_service_tax_assessment"
+    __table_args__ = (
+        UniqueConstraint(
+            "assessment_run_id",
+            "demand_key",
+            name="uq_ctd_service_tax_assessment_run_demand",
+        ),
+        Index(
+            "ix_ctd_service_tax_assessment_daily",
+            "assessment_date",
+            "determination_complete",
+            "state_code",
+        ),
+        Index(
+            "ix_ctd_service_tax_assessment_product",
+            "source_tax_group",
+            "service_category",
+            "assessment_date",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    assessment_run_id: Mapped[int] = mapped_column(ForeignKey("ctd_collection_run.id"), index=True)
+    assessment_date: Mapped[date] = mapped_column(Date, index=True)
+    demand_key: Mapped[str] = mapped_column(String(64), index=True)
+    service_product_demand_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    previous_assessment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ctd_service_tax_assessment.id"), index=True
+    )
+    address_assignment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ctd_address_assignment.id"), index=True
+    )
+    customer_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    source_address_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    source_product_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    source_tax_group: Mapped[str] = mapped_column(String(100), index=True)
+    service_category: Mapped[str | None] = mapped_column(String(100), index=True)
+    charge_type: Mapped[str] = mapped_column(String(40))
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    location_profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ctd_location_profile.id"), index=True
+    )
+    benchmark_p_code: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    trailing_billed_amount: Mapped[Decimal] = mapped_column(Numeric(24, 2))
+    product_mapping_ready: Mapped[bool] = mapped_column(Boolean, default=False)
+    location_ready: Mapped[bool] = mapped_column(Boolean, default=False)
+    taxability_ready: Mapped[bool] = mapped_column(Boolean, default=False)
+    exemption_ready: Mapped[bool] = mapped_column(Boolean, default=True)
+    filing_ready: Mapped[bool] = mapped_column(Boolean, default=False)
+    calculation_ready: Mapped[bool] = mapped_column(Boolean, default=False)
+    determination_complete: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    is_new_demand: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    assessment_changed: Mapped[bool] = mapped_column(Boolean, default=False)
+    candidate_route_count: Mapped[int] = mapped_column(Integer, default=0)
+    resolved_route_count: Mapped[int] = mapped_column(Integer, default=0)
+    taxable_route_count: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_public_tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    gap_codes: Mapped[list[str] | None] = mapped_column(JSON)
+    route_details: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
     assessment_sha256: Mapped[str] = mapped_column(String(64), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

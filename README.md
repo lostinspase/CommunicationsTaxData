@@ -19,6 +19,7 @@ The first release intentionally reports what public data cannot reproduce.
 | Census ZCTA relationships | Nationwide ZCTA-to-county and ZCTA-to-place intersections | `census` | Statistical geography, not USPS ZIP+4 or rooftop assignment |
 | Census address/coordinate geography | All active service addresses | `resolve-locations` | Resolves core geography; not proof of tax or special-district boundaries |
 | Daily location assessment | All active service addresses × tax levels 0–3 | `assess-locations` | Separates jurisdiction, public-rule, filing, and manual-review gaps |
+| Service-aware tax determination | Actual trailing-year billed products and usage | `sync-products` + `assess-services` | Shadow mode; candidate product mappings and interpretive rules require review |
 | State authority register | 50 PUC/PSC and 50 revenue authority sites | `monitor` | Site health is not counted as rule coverage |
 | CA/NY/PA state rules | CPUC/CDTFA, NY DTF sales/wireless/excise, PA DOR | `state` | Source-verified vertical slices; none is yet calculation-ready |
 | NY municipal utility GRT | Eight demand-ranked adopted city/village ordinances | `state` | Rate/base and recipient verified; local return forms remain open |
@@ -61,6 +62,9 @@ Open <http://127.0.0.1:8080>. JSON endpoints are available at:
 - `/api/location-profiles?calculation_ready=false`
 - `/api/location-resolver`
 - `/api/location-assessments?new_only=true`
+- `/api/tax-determination?manual_only=true`
+- `/api/product-taxonomy`
+- `/api/taxability-rules?review_status=reviewed`
 
 ## Database configuration
 
@@ -97,9 +101,11 @@ uv run ctd init
 uv run ctd seed-catalog
 uv run ctd collect --collector all
 uv run ctd benchmark-sync
+uv run ctd sync-products
 uv run ctd resolve-locations
 uv run ctd seed-filing-map
 uv run ctd assess-locations --output-dir reports
+uv run ctd assess-services --output-dir reports
 uv run ctd build-location-profiles
 uv run ctd compare
 uv run ctd report
@@ -164,6 +170,16 @@ Apeiron application tables.
 - `ctd_location_assessment`: one address-level snapshot per daily run, with new/profile-
   change flags and separate federal, state, county, and municipal/special-district
   jurisdiction, public-rule, filing, and manual-gap evidence.
+- `ctd_product_catalog_item`, `ctd_product_taxonomy_map`, and
+  `ctd_service_product_demand`: tax-relevant Apeiron product attributes, reviewable
+  service classifications, and trailing-365-day billed demand by address/product/charge
+  type.
+- `ctd_customer_tax_profile` and `ctd_customer_exemption`: source exemption flags kept
+  distinct from verified, scoped, effective-dated exemption evidence.
+- `ctd_taxability_rule`: reviewed service applicability, sourcing, base, calculation
+  method, filing requirement, citation, and public-fact link.
+- `ctd_service_tax_assessment`: daily shadow determinations with independent product,
+  location/sourcing, taxability, exemption, filing, and calculation readiness gates.
 - `ctd_coverage_exception`: versioned, row-level missing-rate, rate-mismatch, geographic,
   parser, and filing-map gaps.
 
@@ -228,7 +244,7 @@ The exception report is the work queue. The largest substantive workstreams are:
 - non-SST state/local sales and use rate parsers;
 - local UUT, franchise, license, and communications-tax ordinances;
 - current USPS ZIP+4 or licensed address GIS plus 911/rate-center boundaries;
-- service/product taxonomy mapping to Apeiron's engine;
+- legal review and publication of the seeded Apeiron product-taxonomy candidates;
 - legal review and approval workflow for interpretive rules.
 
 The live `/work-queue` page provides the operational order: it ranks state and local
@@ -240,6 +256,12 @@ The live `/location-assessments` page is the daily onboarding gate for service
 addresses. `reports/location-assessment-summary.json` provides aggregate monitoring and
 `reports/location-assessment-gaps.csv` provides the current internal address-ID/ZIP/
 profile work queue. Neither report copies street addresses or customer identities.
+
+The live `/tax-determination` page ranks manual work by products actually billed and
+trailing billed dollars. It never writes to invoices. Candidate internal-tax-group
+mappings are seeded as `proposed`; only reviewed/published mappings and reviewed legal
+rules can make a demand row calculation-ready. See
+[`docs/tax-determination-v1.md`](docs/tax-determination-v1.md).
 
 See [docs/architecture.md](docs/architecture.md) and
 [docs/source-coverage.md](docs/source-coverage.md). Production installation and

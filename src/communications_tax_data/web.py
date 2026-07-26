@@ -28,14 +28,19 @@ from communications_tax_data.models import (
     LocationAssessment,
     LocationProfile,
     PostalAssignment,
+    ProductTaxonomyMap,
+    ServiceProductDemand,
+    ServiceTaxAssessment,
     Source,
     SourceCheck,
+    TaxabilityRule,
     TaxFact,
     TaxFactChange,
     TaxFilingMap,
     TaxTypeCrosswalk,
 )
 from communications_tax_data.state_authorities import STATE_AUTHORITIES
+from communications_tax_data.tax_determination import latest_service_tax_data
 from communications_tax_data.taxonomy import FUSF_PUBLIC_SOURCES
 
 PACKAGE_DIR = Path(__file__).parent
@@ -65,6 +70,9 @@ def dashboard_data(session: Session) -> dict:
     )
     latest_location_assessment_run = session.scalar(
         select(func.max(LocationAssessment.assessment_run_id))
+    )
+    latest_service_assessment_run = session.scalar(
+        select(func.max(ServiceTaxAssessment.assessment_run_id))
     )
     metrics = {
         "sources": session.scalar(select(func.count()).select_from(Source)) or 0,
@@ -172,6 +180,35 @@ def dashboard_data(session: Session) -> dict:
                 )
             )
             if latest_location_assessment_run is not None
+            else 0
+        )
+        or 0,
+        "billed_product_demands": session.scalar(
+            select(func.count()).select_from(ServiceProductDemand)
+        )
+        or 0,
+        "reviewed_product_mappings": session.scalar(
+            select(func.count())
+            .select_from(ProductTaxonomyMap)
+            .where(ProductTaxonomyMap.mapping_status.in_(("reviewed", "published")))
+        )
+        or 0,
+        "reviewed_taxability_rules": session.scalar(
+            select(func.count())
+            .select_from(TaxabilityRule)
+            .where(TaxabilityRule.review_status.in_(("reviewed", "published")))
+        )
+        or 0,
+        "service_demands_calculation_ready": (
+            session.scalar(
+                select(func.count())
+                .select_from(ServiceTaxAssessment)
+                .where(
+                    ServiceTaxAssessment.assessment_run_id == latest_service_assessment_run,
+                    ServiceTaxAssessment.calculation_ready.is_(True),
+                )
+            )
+            if latest_service_assessment_run is not None
             else 0
         )
         or 0,
@@ -654,6 +691,15 @@ def location_assessment_page(
     )
 
 
+@app.get("/tax-determination", response_class=HTMLResponse)
+def tax_determination_page(request: Request, session: Session = Depends(get_session)):
+    return templates.TemplateResponse(
+        request=request,
+        name="tax_determination.html",
+        context=latest_service_tax_data(session),
+    )
+
+
 @app.get("/api/acquisition-queue")
 def acquisition_queue(session: Session = Depends(get_session)):
     return acquisition_queue_data(session)
@@ -679,6 +725,78 @@ def location_assessments(
         manual_only=manual_only,
         limit=limit,
     )
+
+
+@app.get("/api/tax-determination")
+def tax_determination(
+    state: str | None = None,
+    tax_group: str | None = None,
+    manual_only: bool = True,
+    limit: int = Query(1000, ge=1, le=5000),
+    session: Session = Depends(get_session),
+):
+    return latest_service_tax_data(
+        session,
+        state=state,
+        tax_group=tax_group,
+        manual_only=manual_only,
+        limit=limit,
+    )
+
+
+@app.get("/api/product-taxonomy")
+def product_taxonomy(session: Session = Depends(get_session)):
+    return latest_service_tax_data(session, limit=1)["taxonomy"]
+
+
+@app.get("/api/taxability-rules")
+def taxability_rules(
+    state: str | None = None,
+    service_category: str | None = None,
+    review_status: str | None = None,
+    limit: int = Query(1000, ge=1, le=5000),
+    session: Session = Depends(get_session),
+):
+    query = select(TaxabilityRule)
+    if state:
+        query = query.where(TaxabilityRule.state_code == state.upper())
+    if service_category:
+        query = query.where(TaxabilityRule.service_category == service_category)
+    if review_status:
+        query = query.where(TaxabilityRule.review_status == review_status)
+    rows = session.scalars(
+        query.order_by(
+            TaxabilityRule.tax_level,
+            TaxabilityRule.state_code,
+            TaxabilityRule.ctd_tax_concept,
+            TaxabilityRule.service_category,
+        ).limit(limit)
+    )
+    return [
+        {
+            "natural_key": row.natural_key,
+            "ctd_tax_concept": row.ctd_tax_concept,
+            "tax_fact_natural_key": row.tax_fact_natural_key,
+            "tax_level": row.tax_level,
+            "state": row.state_code,
+            "p_code": row.p_code,
+            "jurisdiction": row.jurisdiction_external_key,
+            "service_category": row.service_category,
+            "charge_type": row.charge_type,
+            "taxability": row.taxability,
+            "sourcing_role": row.sourcing_role,
+            "calculation_method": row.calculation_method,
+            "taxable_percentage": (
+                str(row.taxable_percentage) if row.taxable_percentage is not None else None
+            ),
+            "filing_required": row.filing_required,
+            "citation": row.legal_citation,
+            "review_status": row.review_status,
+            "effective_from": row.effective_from,
+            "effective_to": row.effective_to,
+        }
+        for row in rows
+    ]
 
 
 @app.get("/api/state-authorities")

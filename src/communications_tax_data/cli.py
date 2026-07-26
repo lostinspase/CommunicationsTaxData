@@ -27,6 +27,8 @@ from communications_tax_data.filing import (
 from communications_tax_data.location_assessment import assess_service_locations
 from communications_tax_data.location_profiles import build_customer_location_profiles
 from communications_tax_data.location_resolver import resolve_priority_locations
+from communications_tax_data.product_demand import sync_product_demand
+from communications_tax_data.tax_determination import assess_service_tax_demand
 
 app = typer.Typer(no_args_is_help=True, help="Apeiron public tax-data collection agent.")
 
@@ -103,6 +105,16 @@ def benchmark_sync() -> None:
     typer.echo(json.dumps(counts, indent=2))
 
 
+@app.command("sync-products")
+def sync_products() -> None:
+    """Refresh Apeiron product taxonomy inputs, exemption flags, and billed demand."""
+    _setup_logging()
+    create_schema()
+    with session_scope() as session:
+        counts = sync_product_demand(session)
+    typer.echo(json.dumps(counts, indent=2))
+
+
 @app.command("seed-filing-map")
 def seed_filing_map() -> None:
     """Seed verified federal/state fact links, filing entities, forms, and payments."""
@@ -156,6 +168,20 @@ def assess_locations(
     create_schema()
     with session_scope() as session:
         counts = assess_service_locations(session, output_dir=output_dir)
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("assess-services")
+def assess_services(
+    output_dir: Path = typer.Option(
+        Path("reports"),
+        help="Write the service-aware summary JSON and gap CSV here.",
+    ),
+) -> None:
+    """Snapshot product, sourcing, taxability, exemption, filing, and calculation gaps."""
+    create_schema()
+    with session_scope() as session:
+        counts = assess_service_tax_demand(session, output_dir=output_dir)
     typer.echo(json.dumps(counts, indent=2))
 
 
