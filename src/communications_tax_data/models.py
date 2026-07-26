@@ -647,6 +647,70 @@ class AddressAssignment(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class LocationAssessment(Base):
+    """Daily address-level jurisdiction, tax-rule, and filing-gap snapshot."""
+
+    __tablename__ = "ctd_location_assessment"
+    __table_args__ = (
+        UniqueConstraint(
+            "assessment_run_id",
+            "source_system",
+            "source_address_id",
+            name="uq_ctd_location_assessment_run_address",
+        ),
+        Index(
+            "ix_ctd_location_assessment_address",
+            "source_system",
+            "source_address_id",
+            "assessment_date",
+        ),
+        Index(
+            "ix_ctd_location_assessment_daily_gaps",
+            "assessment_date",
+            "assessment_complete",
+            "is_new_address",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    assessment_run_id: Mapped[int] = mapped_column(
+        ForeignKey("ctd_collection_run.id"), index=True
+    )
+    assessment_date: Mapped[date] = mapped_column(Date, index=True)
+    source_system: Mapped[str] = mapped_column(String(80))
+    source_address_id: Mapped[int] = mapped_column(BigInteger)
+    address_assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("ctd_address_assignment.id"), index=True
+    )
+    location_profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ctd_location_profile.id"), index=True
+    )
+    previous_assessment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ctd_location_assessment.id"), index=True
+    )
+    state_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    postal_code: Mapped[str | None] = mapped_column(String(10), index=True)
+    plus_four: Mapped[str | None] = mapped_column(String(4))
+    benchmark_p_code: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    resolver_status: Mapped[str] = mapped_column(String(30), index=True)
+    resolver_confidence: Mapped[str] = mapped_column(String(20))
+    location_calculation_ready: Mapped[bool] = mapped_column(Boolean, default=False)
+    assessment_complete: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    is_new_address: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    is_new_profile: Mapped[bool] = mapped_column(Boolean, default=False)
+    profile_changed: Mapped[bool] = mapped_column(Boolean, default=False)
+    assessment_changed: Mapped[bool] = mapped_column(Boolean, default=False)
+    level_0_status: Mapped[str] = mapped_column(String(20))
+    level_1_status: Mapped[str] = mapped_column(String(20))
+    level_2_status: Mapped[str] = mapped_column(String(20))
+    level_3_status: Mapped[str] = mapped_column(String(20))
+    gap_count: Mapped[int] = mapped_column(Integer, default=0)
+    manual_gap_levels: Mapped[list[int] | None] = mapped_column(JSON)
+    level_details: Mapped[dict[str, Any]] = mapped_column(JSON)
+    assessment_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class CoverageException(Base):
     __tablename__ = "ctd_coverage_exception"
     __table_args__ = (

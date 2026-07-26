@@ -36,6 +36,7 @@ case "$MODE" in
     "$CTD" resolve-locations
     "$CTD" seed-filing-map
     "$CTD" build-location-profiles
+    "$CTD" assess-locations --output-dir "$APP_DIR/reports"
     ;;
   sst)
     "$CTD" seed-catalog

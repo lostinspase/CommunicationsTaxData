@@ -9,7 +9,8 @@
 | Federal | FCC DA 26-646 | 30 days | 2026–27 TRS factors and distinct revenue bases |
 | State/local sales | SST rate directory | Quarterly, checked weekly | Four rate variants and effective periods |
 | Geography | 2020 Census ZCTA relationship files | Annual | County/place overlaps and allocation ratios |
-| Geography | Census current coordinate and address-range geocoder | Daily for new/changed priority addresses; forced monthly | Effective-dated core state/county/place/subdivision assignment to deterministic CTD profiles |
+| Geography | Census current coordinate and address-range geocoder | Daily for new/changed active service addresses; forced monthly | Effective-dated core state/county/place/subdivision assignment to deterministic CTD profiles |
+| Assessment | Resolver + benchmark + approved public-rule/filing maps | Daily | New-address and changed-profile report with manual gaps at levels 0–3 |
 | Federal filing | IRS Form 720/Publication 510, USAC Forms 499, FCC CORES | 14–30 days | Filing entity, payment recipient, return/portal, exemption guidance |
 | California PUC | CPUC surcharge and user-fee tables | Daily; source cadence 7 days | Flat per-line surcharge and gross-intrastate-revenue user-fee histories |
 | California revenue | CDTFA mobile-phone industry guidance | Daily; source cadence 14 days | Standalone service/data-plan taxability rule and device/prepaid distinction |

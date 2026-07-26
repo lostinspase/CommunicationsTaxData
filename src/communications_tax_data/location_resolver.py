@@ -257,8 +257,8 @@ class CensusGeocoder:
         return payload
 
 
-def load_priority_service_addresses(*, limit: int | None = None) -> list[ResolverAddress]:
-    """Load only address rows needed by active, taxed customers; never customer identities."""
+def load_active_service_addresses(*, limit: int | None = None) -> list[ResolverAddress]:
+    """Load distinct active service addresses without copying customer identities."""
     engine = create_engine(get_settings().benchmark_url(), pool_pre_ping=True, future=True)
     sql = text(
         """
@@ -285,12 +285,6 @@ def load_priority_service_addresses(*, limit: int | None = None) -> list[Resolve
           AND c.test_account = 0
           AND c.generate_invoices = 1
           AND UPPER(COALESCE(NULLIF(TRIM(a.country), ''), 'USA')) IN ('US', 'USA')
-          AND EXISTS (
-              SELECT 1
-              FROM apeiron_apeirontaxchargessummary t
-              WHERE t.customer_id = c.user_id
-                AND t.total <> 0
-          )
         ORDER BY a.id
         """
     )
@@ -312,10 +306,10 @@ def resolve_priority_locations(
     geocoder: Callable[[ResolverAddress], Resolution] | None = None,
     retire_missing: bool | None = None,
 ) -> dict[str, Any]:
-    """Resolve priority service addresses to deterministic CTD jurisdiction profiles."""
+    """Resolve active service addresses to deterministic CTD jurisdiction profiles."""
     externally_supplied_addresses = addresses is not None
     if addresses is None:
-        address_rows = load_priority_service_addresses(limit=limit)
+        address_rows = load_active_service_addresses(limit=limit)
     else:
         address_rows = [
             item if isinstance(item, ResolverAddress) else ResolverAddress.from_mapping(item)

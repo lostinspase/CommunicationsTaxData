@@ -24,6 +24,7 @@ from communications_tax_data.filing import (
     seed_federal_filing_map,
     seed_state_filing_and_benchmark_maps,
 )
+from communications_tax_data.location_assessment import assess_service_locations
 from communications_tax_data.location_profiles import build_customer_location_profiles
 from communications_tax_data.location_resolver import resolve_priority_locations
 
@@ -133,14 +134,28 @@ def resolve_locations(
     limit: int | None = typer.Option(
         None,
         min=1,
-        help="Resolve at most this many priority addresses (useful for a staged run).",
+        help="Resolve at most this many active service addresses (useful for a staged run).",
     ),
 ) -> None:
-    """Resolve priority service addresses to effective-dated CTD jurisdiction sets."""
+    """Resolve active service addresses to effective-dated CTD jurisdiction sets."""
     _setup_logging()
     create_schema()
     with session_scope() as session:
         counts = resolve_priority_locations(session, force=force, limit=limit)
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("assess-locations")
+def assess_locations(
+    output_dir: Path = typer.Option(
+        Path("reports"),
+        help="Write the current aggregate JSON and address-level gap CSV here.",
+    ),
+) -> None:
+    """Snapshot daily address, jurisdiction, public-rule, and filing gaps."""
+    create_schema()
+    with session_scope() as session:
+        counts = assess_service_locations(session, output_dir=output_dir)
     typer.echo(json.dumps(counts, indent=2))
 
 

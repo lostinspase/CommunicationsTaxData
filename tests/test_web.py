@@ -24,6 +24,9 @@ def test_dashboard_data_handles_empty_database(session):
     assert data["metrics"]["current_facts"] == 0
     assert data["metrics"]["benchmark_tax_types"] == 0
     assert data["metrics"]["resolved_addresses"] == 0
+    assert data["metrics"]["active_addresses_assessed"] == 0
+    assert data["metrics"]["new_service_addresses"] == 0
+    assert data["metrics"]["addresses_needing_manual_coverage"] == 0
     assert data["coverage"] == [
         {"level": 0, "name": "Federal", "public": 0, "benchmark": 0},
         {"level": 1, "name": "State", "public": 0, "benchmark": 0},

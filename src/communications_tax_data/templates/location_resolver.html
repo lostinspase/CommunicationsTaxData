@@ -42,7 +42,7 @@
 </head>
 <body>
 <header>
-  <a href="/">← Main dashboard</a> · <a href="/work-queue">Acquisition queue</a>
+  <a href="/">← Main dashboard</a> · <a href="/work-queue">Acquisition queue</a> · <a href="/location-assessments">Daily address assessment</a>
   <h1>Location Resolver v1</h1>
   <p>Effective-dated service-address assignments to deterministic CTD jurisdiction-set
     profiles. This view is aggregate-only; it does not expose source address IDs, street
@@ -50,7 +50,7 @@
 </header>
 <main>
   <section class="metrics">
-    <div class="card metric"><b>{{ summary.current_assignments }}</b><span>current priority address assignments</span></div>
+    <div class="card metric"><b>{{ summary.current_assignments }}</b><span>current active service-address assignments</span></div>
     <div class="card metric"><b>{{ summary.resolved_core }}</b><span>core geography resolved</span></div>
     <div class="card metric"><b>{{ "%.2f%%"|format(summary.resolved_percent) if summary.resolved_percent is not none else "n/a" }}</b><span>core resolution coverage</span></div>
     <div class="card metric"><b>{{ summary.jurisdiction_profiles }}</b><span>unique CTD jurisdiction sets</span></div>

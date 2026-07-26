@@ -17,7 +17,8 @@ The first release intentionally reports what public data cannot reproduce.
 | IRS communications excise | Federal 3% current operational rule | `federal` | Bundled/long-distance treatment requires the recorded base rule |
 | SST rate files | 24 member states; state/county/city/special district sales/use components | `sst` | Does not establish whether a communications product is taxable |
 | Census ZCTA relationships | Nationwide ZCTA-to-county and ZCTA-to-place intersections | `census` | Statistical geography, not USPS ZIP+4 or rooftop assignment |
-| Census address/coordinate geography | Active taxed service-address footprint | `resolve-locations` | Resolves core geography; not proof of tax or special-district boundaries |
+| Census address/coordinate geography | All active service addresses | `resolve-locations` | Resolves core geography; not proof of tax or special-district boundaries |
+| Daily location assessment | All active service addresses × tax levels 0–3 | `assess-locations` | Separates jurisdiction, public-rule, filing, and manual-review gaps |
 | State authority register | 50 PUC/PSC and 50 revenue authority sites | `monitor` | Site health is not counted as rule coverage |
 | CA/NY/PA state rules | CPUC/CDTFA, NY DTF sales/wireless/excise, PA DOR | `state` | Source-verified vertical slices; none is yet calculation-ready |
 | NY municipal utility GRT | Eight demand-ranked adopted city/village ordinances | `state` | Rate/base and recipient verified; local return forms remain open |
@@ -59,6 +60,7 @@ Open <http://127.0.0.1:8080>. JSON endpoints are available at:
 - `/api/changes?change_source=benchmark`
 - `/api/location-profiles?calculation_ready=false`
 - `/api/location-resolver`
+- `/api/location-assessments?new_only=true`
 
 ## Database configuration
 
@@ -97,6 +99,7 @@ uv run ctd collect --collector all
 uv run ctd benchmark-sync
 uv run ctd resolve-locations
 uv run ctd seed-filing-map
+uv run ctd assess-locations --output-dir reports
 uv run ctd build-location-profiles
 uv run ctd compare
 uv run ctd report
@@ -158,6 +161,9 @@ Apeiron application tables.
 - `ctd_address_assignment`: privacy-limited, effective-dated links from an internal
   service-address row to a CTD jurisdiction set. It stores the source row ID and an
   address fingerprint for change detection, not a duplicate street address.
+- `ctd_location_assessment`: one address-level snapshot per daily run, with new/profile-
+  change flags and separate federal, state, county, and municipal/special-district
+  jurisdiction, public-rule, filing, and manual-gap evidence.
 - `ctd_coverage_exception`: versioned, row-level missing-rate, rate-mismatch, geographic,
   parser, and filing-map gaps.
 
@@ -229,6 +235,11 @@ The live `/work-queue` page provides the operational order: it ranks state and l
 targets by trailing-365-day tax billed, and reports legal-rule and filing-map gaps
 separately. This makes the first local expansion demand-driven rather than a 50-state
 alphabetical scrape.
+
+The live `/location-assessments` page is the daily onboarding gate for service
+addresses. `reports/location-assessment-summary.json` provides aggregate monitoring and
+`reports/location-assessment-gaps.csv` provides the current internal address-ID/ZIP/
+profile work queue. Neither report copies street addresses or customer identities.
 
 See [docs/architecture.md](docs/architecture.md) and
 [docs/source-coverage.md](docs/source-coverage.md). Production installation and

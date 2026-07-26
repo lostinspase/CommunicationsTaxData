@@ -68,7 +68,7 @@ composition—not on a street address, ZIP, or Avalara p_code. Therefore address
 the same state/county/incorporated-place/county-subdivision set reuse one CTD profile.
 
 Location Resolver v1 reads only the service-address rows required by active, non-test,
-invoice-generating customers with nonzero invoice-tax history. It prefers an existing
+invoice-generating customers, including new addresses with no invoice-tax history. It prefers an existing
 valid coordinate and otherwise calls the official Census current address-range
 geocoder. It creates an effective-dated `ctd_address_assignment`, retaining the source
 address row ID and a one-way address fingerprint instead of copying the street address.
@@ -76,6 +76,27 @@ The dashboard and resolver API return aggregates only.
 On an unrestricted full-footprint run, a current assignment whose source address is no
 longer in the priority population is closed with `valid_to`; limited and fixture runs do
 not retire unseen rows.
+
+## Daily address assessment gate
+
+After each daily benchmark refresh, location resolution, and filing-map seed, CTD writes
+one `ctd_location_assessment` snapshot for every current active service address. The
+snapshot detects a new address, a newly observed jurisdiction-set profile, a profile
+change, or a change in available tax content. Each of levels 0–3 records:
+
+- resolved public jurisdiction members and tax-boundary readiness;
+- distinct active nonzero benchmark tax-type routes;
+- routes backed by a current published public fact and approved legal mapping;
+- routes with an approved filing/payment map; and
+- explicit manual gap codes and missing benchmark tax-type IDs.
+
+An address is complete only when every level is complete. A Census match is useful
+location evidence but keeps levels 1–3 in `TAX_BOUNDARY_UNVERIFIED` until an authoritative
+tax boundary or reviewed statutory safe harbor is present. When a benchmark level has
+no nonzero type, CTD emits `NO_REVIEWED_NO_TAX_DETERMINATION` instead of assuming the
+absence of tax. The dashboard/API and generated CSV identify the source address row,
+state, ZIP, CTD profile, and p_code comparison reference without copying street or
+customer data.
 
 Census state, county, incorporated-place, and county-subdivision identities become core
 profile members. A Census designated place is diagnostic evidence only because it is a

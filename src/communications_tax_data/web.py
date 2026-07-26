@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from communications_tax_data import __version__
 from communications_tax_data.acquisition import acquisition_queue_data
 from communications_tax_data.db import get_engine
+from communications_tax_data.location_assessment import latest_location_assessment_data
 from communications_tax_data.models import (
     AddressAssignment,
     BenchmarkJurisdiction,
@@ -24,6 +25,7 @@ from communications_tax_data.models import (
     FilingDocument,
     FilingEntity,
     Jurisdiction,
+    LocationAssessment,
     LocationProfile,
     PostalAssignment,
     Source,
@@ -60,6 +62,9 @@ def dashboard_data(session: Session) -> dict:
     current_fact_filter = (
         TaxFact.effective_from <= today,
         or_(TaxFact.effective_to.is_(None), TaxFact.effective_to >= today),
+    )
+    latest_location_assessment_run = session.scalar(
+        select(func.max(LocationAssessment.assessment_run_id))
     )
     metrics = {
         "sources": session.scalar(select(func.count()).select_from(Source)) or 0,
@@ -127,6 +132,47 @@ def dashboard_data(session: Session) -> dict:
                 AddressAssignment.valid_to.is_(None),
                 AddressAssignment.calculation_ready.is_(True),
             )
+        )
+        or 0,
+        "active_addresses_assessed": (
+            session.scalar(
+                select(func.count())
+                .select_from(LocationAssessment)
+                .where(
+                    LocationAssessment.assessment_run_id
+                    == latest_location_assessment_run
+                )
+            )
+            if latest_location_assessment_run is not None
+            else 0
+        )
+        or 0,
+        "new_service_addresses": (
+            session.scalar(
+                select(func.count())
+                .select_from(LocationAssessment)
+                .where(
+                    LocationAssessment.assessment_run_id
+                    == latest_location_assessment_run,
+                    LocationAssessment.is_new_address.is_(True),
+                )
+            )
+            if latest_location_assessment_run is not None
+            else 0
+        )
+        or 0,
+        "addresses_needing_manual_coverage": (
+            session.scalar(
+                select(func.count())
+                .select_from(LocationAssessment)
+                .where(
+                    LocationAssessment.assessment_run_id
+                    == latest_location_assessment_run,
+                    LocationAssessment.assessment_complete.is_(False),
+                )
+            )
+            if latest_location_assessment_run is not None
+            else 0
         )
         or 0,
     }
@@ -597,6 +643,17 @@ def location_resolver_page(
     )
 
 
+@app.get("/location-assessments", response_class=HTMLResponse)
+def location_assessment_page(
+    request: Request, session: Session = Depends(get_session)
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="location_assessment.html",
+        context=latest_location_assessment_data(session),
+    )
+
+
 @app.get("/api/acquisition-queue")
 def acquisition_queue(session: Session = Depends(get_session)):
     return acquisition_queue_data(session)
@@ -605,6 +662,23 @@ def acquisition_queue(session: Session = Depends(get_session)):
 @app.get("/api/location-resolver")
 def location_resolver_status(session: Session = Depends(get_session)):
     return location_resolver_data(session)
+
+
+@app.get("/api/location-assessments")
+def location_assessments(
+    state: str | None = None,
+    new_only: bool = False,
+    manual_only: bool = True,
+    limit: int = Query(1000, ge=1, le=5000),
+    session: Session = Depends(get_session),
+):
+    return latest_location_assessment_data(
+        session,
+        state=state,
+        new_only=new_only,
+        manual_only=manual_only,
+        limit=limit,
+    )
 
 
 @app.get("/api/state-authorities")
