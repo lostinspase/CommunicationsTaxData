@@ -35,6 +35,7 @@ def test_dashboard_data_handles_empty_database(session):
     assert resolver["summary"]["current_assignments"] == 0
     assert resolver["summary"]["resolved_percent"] is None
     assert resolver["latest_run"] is None
+    assert resolver["benchmark_comparison"]["state_comparable"] == 0
 
 
 def test_source_health_reports_latest_failure(session):

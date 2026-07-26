@@ -279,6 +279,35 @@ def location_resolver_data(session: Session) -> dict:
         .where(CollectionRun.collector == "location-resolver-v1")
         .order_by(CollectionRun.started_at.desc(), CollectionRun.id.desc())
     )
+    benchmark_comparison = {
+        "p_code_present": 0,
+        "benchmark_row_present": 0,
+        "state_comparable": 0,
+        "state_match": 0,
+        "state_mismatch": 0,
+        "county_comparable": 0,
+        "county_match": 0,
+        "county_mismatch": 0,
+        "locality_comparable": 0,
+        "locality_match": 0,
+        "locality_mismatch": 0,
+    }
+    for evidence in session.scalars(
+        select(AddressAssignment.evidence).where(current)
+    ):
+        comparison = (evidence or {}).get("benchmark_comparison") or {}
+        benchmark_comparison["p_code_present"] += int(
+            comparison.get("p_code_present") is True
+        )
+        benchmark_comparison["benchmark_row_present"] += int(
+            comparison.get("benchmark_row_present") is True
+        )
+        for field in ("state", "county", "locality"):
+            value = comparison.get(f"{field}_match")
+            if value is None:
+                continue
+            benchmark_comparison[f"{field}_comparable"] += 1
+            benchmark_comparison[f"{field}_{'match' if value else 'mismatch'}"] += 1
     resolved = next(
         (row["count"] for row in status_rows if row["status"] == "resolved_core"), 0
     )
@@ -331,6 +360,7 @@ def location_resolver_data(session: Session) -> dict:
             if latest_run
             else None
         ),
+        "benchmark_comparison": benchmark_comparison,
         "policy": {
             "profile_role": "CTD jurisdiction-set identifier (p_code replacement)",
             "zip_plus_four": (
