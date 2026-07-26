@@ -430,6 +430,7 @@ def resolve_priority_locations(
             evidence.update(
                 {
                     "resolver_version": 1,
+                    "collection_run_id": run.id,
                     "census_benchmark": CENSUS_BENCHMARK,
                     "census_vintage": CENSUS_VINTAGE,
                     "jurisdiction_external_keys": [
@@ -695,6 +696,8 @@ def _upsert_assignment(
     if current is not None:
         current.valid_to = now
         action = "superseded"
+        evidence = dict(evidence)
+        evidence["previous_assignment_id"] = current.id
     else:
         action = "inserted"
     assignment = AddressAssignment(

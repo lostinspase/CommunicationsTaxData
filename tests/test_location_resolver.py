@@ -109,6 +109,7 @@ def test_resolver_reuses_jurisdiction_set_and_keeps_assignments_effective_dated(
         evidence = json.dumps(assignment.evidence)
         assert "Market St" not in evidence
         assert "matchedAddress" not in evidence
+        assert assignment.evidence["collection_run_id"] == first["collection_run_id"]
 
     second = resolve_priority_locations(session, addresses=addresses, geocoder=_resolution)
     session.flush()
@@ -132,6 +133,8 @@ def test_resolver_reuses_jurisdiction_set_and_keeps_assignments_effective_dated(
     assert versions[0].valid_to is not None
     assert versions[1].valid_to is None
     assert versions[0].address_fingerprint != versions[1].address_fingerprint
+    assert versions[1].evidence["previous_assignment_id"] == versions[0].id
+    assert versions[1].evidence["collection_run_id"] == changed["collection_run_id"]
 
     latest = (
         session.query(CollectionRun)
