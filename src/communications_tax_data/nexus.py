@@ -679,7 +679,7 @@ def sync_nexus_exposures(
             for row in rows:
                 state_code = (row["state_code"] or "").strip().upper()
                 if len(state_code) != 2:
-                    state_code = "UNRESOLVED"
+                    state_code = "UN"
                 year = int(row["calendar_year"])
                 end = date(year, 12, 31)
                 if year == assessment_date.year:
