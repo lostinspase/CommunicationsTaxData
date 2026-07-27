@@ -613,7 +613,8 @@ def sync_nexus_exposures(
         sql = text(
             """
             SELECT YEAR(b.invoice_at) AS calendar_year,
-                   UPPER(LEFT(TRIM(a.state), 8)) AS state_code,
+                   CASE WHEN CHAR_LENGTH(TRIM(a.state)) = 2
+                        THEN UPPER(TRIM(a.state)) ELSE 'UN' END AS state_code,
                    SUM(ABS(b.amount)) AS gross_billed_amount,
                    SUM(CASE WHEN b.tax_group IN
                         ('equipment-included','equipment-lease','equipment-sale')
@@ -668,7 +669,9 @@ def sync_nexus_exposures(
             JOIN apeiron_apeironcustomer c ON c.user_id = b.customer_id
             LEFT JOIN apeiron_apeironaddress a ON a.id = c.service_address_id
             WHERE c.closed = 0 AND c.test_account = 0 AND c.generate_invoices = 1
-            GROUP BY YEAR(b.invoice_at), UPPER(LEFT(TRIM(a.state), 8))
+            GROUP BY YEAR(b.invoice_at),
+                     CASE WHEN CHAR_LENGTH(TRIM(a.state)) = 2
+                          THEN UPPER(TRIM(a.state)) ELSE 'UN' END
             ORDER BY calendar_year, state_code
             """
         )
