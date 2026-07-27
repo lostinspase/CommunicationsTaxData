@@ -81,8 +81,7 @@ def acquisition_queue_data(session: Session) -> dict:
             and mapping.benchmark_tax_level == item.tax_level
             and mapping.state_code in (None, state)
             and mapping.p_code in (None, item.p_code)
-            and mapping.mapping_status
-            in {"source_verified", "reviewed", "verified", "published"}
+            and mapping.mapping_status in {"source_verified", "reviewed", "verified", "published"}
             and bool(mapping.legal_citation)
             for mapping in fact_maps
         )
@@ -113,11 +112,7 @@ def acquisition_queue_data(session: Session) -> dict:
 
     for item in demand:
         location = locations.get(item.p_code)
-        state = (
-            location.state_code
-            if location is not None
-            else (item.state_code or "Unknown")
-        )
+        state = location.state_code if location is not None else (item.state_code or "Unknown")
         amount = item.trailing_12m_tax_amount or Decimal()
         all_customers.add(item.customer_id)
         all_pcodes.add(item.p_code)

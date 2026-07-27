@@ -27,6 +27,7 @@ from communications_tax_data.models import (
     Jurisdiction,
     LocationAssessment,
     LocationProfile,
+    NexusAssessment,
     PostalAssignment,
     ProductTaxonomyMap,
     ServiceProductDemand,
@@ -39,6 +40,7 @@ from communications_tax_data.models import (
     TaxFilingMap,
     TaxTypeCrosswalk,
 )
+from communications_tax_data.nexus import nexus_dashboard_data
 from communications_tax_data.state_authorities import STATE_AUTHORITIES
 from communications_tax_data.tax_determination import (
     latest_service_tax_data,
@@ -77,6 +79,9 @@ def dashboard_data(session: Session) -> dict:
     latest_service_assessment_run = session.scalar(
         select(func.max(ServiceTaxAssessment.assessment_run_id))
     )
+    latest_nexus_assessment_run = session.scalar(
+        select(func.max(NexusAssessment.assessment_run_id))
+    )
     metrics = {
         "sources": session.scalar(select(func.count()).select_from(Source)) or 0,
         "source_failures": session.scalar(
@@ -103,9 +108,7 @@ def dashboard_data(session: Session) -> dict:
             )
         )
         or 0,
-        "benchmark_postal": session.scalar(
-            select(func.count()).select_from(BenchmarkJurisdiction)
-        )
+        "benchmark_postal": session.scalar(select(func.count()).select_from(BenchmarkJurisdiction))
         or 0,
         "open_exceptions": session.scalar(
             select(func.count())
@@ -119,14 +122,9 @@ def dashboard_data(session: Session) -> dict:
             .where(CustomerTaxNeed.active_customer.is_(True))
         )
         or 0,
-        "benchmark_changes": session.scalar(
-            select(func.count()).select_from(BenchmarkRateChange)
-        )
+        "benchmark_changes": session.scalar(select(func.count()).select_from(BenchmarkRateChange))
         or 0,
-        "filing_maps": session.scalar(
-            select(func.count()).select_from(TaxFilingMap)
-        )
-        or 0,
+        "filing_maps": session.scalar(select(func.count()).select_from(TaxFilingMap)) or 0,
         "resolved_addresses": session.scalar(
             select(func.count())
             .select_from(AddressAssignment)
@@ -149,10 +147,7 @@ def dashboard_data(session: Session) -> dict:
             session.scalar(
                 select(func.count())
                 .select_from(LocationAssessment)
-                .where(
-                    LocationAssessment.assessment_run_id
-                    == latest_location_assessment_run
-                )
+                .where(LocationAssessment.assessment_run_id == latest_location_assessment_run)
             )
             if latest_location_assessment_run is not None
             else 0
@@ -163,8 +158,7 @@ def dashboard_data(session: Session) -> dict:
                 select(func.count())
                 .select_from(LocationAssessment)
                 .where(
-                    LocationAssessment.assessment_run_id
-                    == latest_location_assessment_run,
+                    LocationAssessment.assessment_run_id == latest_location_assessment_run,
                     LocationAssessment.is_new_address.is_(True),
                 )
             )
@@ -177,8 +171,7 @@ def dashboard_data(session: Session) -> dict:
                 select(func.count())
                 .select_from(LocationAssessment)
                 .where(
-                    LocationAssessment.assessment_run_id
-                    == latest_location_assessment_run,
+                    LocationAssessment.assessment_run_id == latest_location_assessment_run,
                     LocationAssessment.assessment_complete.is_(False),
                 )
             )
@@ -212,6 +205,36 @@ def dashboard_data(session: Session) -> dict:
                 )
             )
             if latest_service_assessment_run is not None
+            else 0
+        )
+        or 0,
+        "nexus_states_assessed": (
+            session.scalar(
+                select(func.count())
+                .select_from(NexusAssessment)
+                .where(NexusAssessment.assessment_run_id == latest_nexus_assessment_run)
+            )
+            if latest_nexus_assessment_run is not None
+            else 0
+        )
+        or 0,
+        "nexus_review_states": (
+            session.scalar(
+                select(func.count())
+                .select_from(NexusAssessment)
+                .where(
+                    NexusAssessment.assessment_run_id == latest_nexus_assessment_run,
+                    NexusAssessment.status.in_(
+                        (
+                            "economic_nexus_candidate",
+                            "physical_presence_review",
+                            "threshold_basis_review",
+                            "local_sales_tax_review",
+                        )
+                    ),
+                )
+            )
+            if latest_nexus_assessment_run is not None
             else 0
         )
         or 0,
@@ -258,9 +281,7 @@ def dashboard_data(session: Session) -> dict:
         )
     ]
     runs = list(
-        session.scalars(
-            select(CollectionRun).order_by(CollectionRun.started_at.desc()).limit(10)
-        )
+        session.scalars(select(CollectionRun).order_by(CollectionRun.started_at.desc()).limit(10))
     )
     latest_metric_run = session.scalar(select(func.max(CoverageMetric.comparison_run_id)))
     priority_metrics = []
@@ -303,12 +324,7 @@ def dashboard_data(session: Session) -> dict:
 def location_resolver_data(session: Session) -> dict:
     """Return aggregate resolver status without exposing service-address identities."""
     current = AddressAssignment.valid_to.is_(None)
-    total = (
-        session.scalar(
-            select(func.count()).select_from(AddressAssignment).where(current)
-        )
-        or 0
-    )
+    total = session.scalar(select(func.count()).select_from(AddressAssignment).where(current)) or 0
     status_rows = [
         {"status": status, "count": count}
         for status, count in session.execute(
@@ -378,13 +394,9 @@ def location_resolver_data(session: Session) -> dict:
         "locality_match": 0,
         "locality_mismatch": 0,
     }
-    for evidence in session.scalars(
-        select(AddressAssignment.evidence).where(current)
-    ):
+    for evidence in session.scalars(select(AddressAssignment.evidence).where(current)):
         comparison = (evidence or {}).get("benchmark_comparison") or {}
-        benchmark_comparison["p_code_present"] += int(
-            comparison.get("p_code_present") is True
-        )
+        benchmark_comparison["p_code_present"] += int(comparison.get("p_code_present") is True)
         benchmark_comparison["benchmark_row_present"] += int(
             comparison.get("benchmark_row_present") is True
         )
@@ -394,9 +406,7 @@ def location_resolver_data(session: Session) -> dict:
                 continue
             benchmark_comparison[f"{field}_comparable"] += 1
             benchmark_comparison[f"{field}_{'match' if value else 'mismatch'}"] += 1
-    resolved = next(
-        (row["count"] for row in status_rows if row["status"] == "resolved_core"), 0
-    )
+    resolved = next((row["count"] for row in status_rows if row["status"] == "resolved_core"), 0)
     return {
         "summary": {
             "current_assignments": total,
@@ -600,14 +610,10 @@ def state_authority_data(session: Session) -> dict:
                     "status": rule_status(revenue_rule_count),
                 },
                 "puc_sources": [
-                    item
-                    for item in normalized_sources
-                    if item["type"].startswith("state_puc_")
+                    item for item in normalized_sources if item["type"].startswith("state_puc_")
                 ],
                 "revenue_sources": [
-                    item
-                    for item in normalized_sources
-                    if item["type"].startswith("state_revenue_")
+                    item for item in normalized_sources if item["type"].startswith("state_revenue_")
                 ],
                 "normalized_sources": normalized_sources,
             }
@@ -651,9 +657,7 @@ def dashboard(request: Request, session: Session = Depends(get_session)):
 
 
 @app.get("/states", response_class=HTMLResponse)
-def state_authorities_page(
-    request: Request, session: Session = Depends(get_session)
-):
+def state_authorities_page(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(
         request=request,
         name="states.html",
@@ -661,10 +665,17 @@ def state_authorities_page(
     )
 
 
+@app.get("/nexus", response_class=HTMLResponse)
+def nexus_page(request: Request, session: Session = Depends(get_session)):
+    return templates.TemplateResponse(
+        request=request,
+        name="nexus.html",
+        context=nexus_dashboard_data(session),
+    )
+
+
 @app.get("/work-queue", response_class=HTMLResponse)
-def acquisition_queue_page(
-    request: Request, session: Session = Depends(get_session)
-):
+def acquisition_queue_page(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(
         request=request,
         name="work_queue.html",
@@ -673,9 +684,7 @@ def acquisition_queue_page(
 
 
 @app.get("/locations", response_class=HTMLResponse)
-def location_resolver_page(
-    request: Request, session: Session = Depends(get_session)
-):
+def location_resolver_page(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(
         request=request,
         name="location_resolver.html",
@@ -684,9 +693,7 @@ def location_resolver_page(
 
 
 @app.get("/location-assessments", response_class=HTMLResponse)
-def location_assessment_page(
-    request: Request, session: Session = Depends(get_session)
-):
+def location_assessment_page(request: Request, session: Session = Depends(get_session)):
     return templates.TemplateResponse(
         request=request,
         name="location_assessment.html",
@@ -706,6 +713,11 @@ def tax_determination_page(request: Request, session: Session = Depends(get_sess
 @app.get("/api/acquisition-queue")
 def acquisition_queue(session: Session = Depends(get_session)):
     return acquisition_queue_data(session)
+
+
+@app.get("/api/nexus")
+def nexus_status(session: Session = Depends(get_session)):
+    return nexus_dashboard_data(session)
 
 
 @app.get("/api/location-resolver")
@@ -966,9 +978,7 @@ def tax_types(
         rate_query = rate_query.where(BenchmarkRate.tax_type == tax_type)
     rate_rows = list(session.scalars(rate_query))
     active_types = {row.tax_type for row in rate_rows}
-    query = select(TaxTypeCrosswalk).where(
-        TaxTypeCrosswalk.benchmark_tax_type.in_(active_types)
-    )
+    query = select(TaxTypeCrosswalk).where(TaxTypeCrosswalk.benchmark_tax_type.in_(active_types))
     if mapping_status:
         query = query.where(TaxTypeCrosswalk.mapping_status == mapping_status)
     crosswalks_by_type: dict[int, list[TaxTypeCrosswalk]] = {}
@@ -985,26 +995,16 @@ def tax_types(
     for benchmark_tax_type in sorted(rates_by_type)[:limit]:
         benchmark_rows = rates_by_type[benchmark_tax_type]
         crosswalk_rows = crosswalks_by_type.get(benchmark_tax_type, [])
-        concepts = sorted(
-            {row.ctd_tax_concept for row in crosswalk_rows if row.ctd_tax_concept}
-        )
+        concepts = sorted({row.ctd_tax_concept for row in crosswalk_rows if row.ctd_tax_concept})
         result.append(
             {
                 "benchmark_tax_type": benchmark_tax_type,
                 "tax_levels": sorted({row.tax_level for row in benchmark_rows}),
                 "benchmark_categories": sorted(
-                    {
-                        row.tax_category
-                        for row in benchmark_rows
-                        if row.tax_category
-                    }
+                    {row.tax_category for row in benchmark_rows if row.tax_category}
                 ),
                 "benchmark_descriptions": sorted(
-                    {
-                        row.tax_description
-                        for row in benchmark_rows
-                        if row.tax_description
-                    }
+                    {row.tax_description for row in benchmark_rows if row.tax_description}
                 ),
                 "nonzero_rates": [
                     str(value)
@@ -1014,38 +1014,23 @@ def tax_types(
                 ],
                 "ctd_tax_concepts": concepts,
                 "service_categories": sorted(
-                    {
-                        row.service_category
-                        for row in crosswalk_rows
-                        if row.service_category
-                    }
+                    {row.service_category for row in crosswalk_rows if row.service_category}
                 ),
-                "mapping_statuses": sorted(
-                    {row.mapping_status for row in crosswalk_rows}
-                ),
-                "mapping_methods": sorted(
-                    {row.mapping_method for row in crosswalk_rows}
-                ),
+                "mapping_statuses": sorted({row.mapping_status for row in crosswalk_rows}),
+                "mapping_methods": sorted({row.mapping_method for row in crosswalk_rows}),
                 "confidence": sorted({row.confidence for row in crosswalk_rows}),
                 "public_law_supported": any(
-                    row.ctd_tax_concept and row.legal_citation
-                    for row in crosswalk_rows
+                    row.ctd_tax_concept and row.legal_citation for row in crosswalk_rows
                 ),
                 "citations": sorted(
-                    {
-                        row.legal_citation
-                        for row in crosswalk_rows
-                        if row.legal_citation
-                    }
+                    {row.legal_citation for row in crosswalk_rows if row.legal_citation}
                 ),
                 "public_sources": (
                     list(FUSF_PUBLIC_SOURCES)
                     if "federal_universal_service_fund" in concepts
                     else []
                 ),
-                "notes": sorted(
-                    {row.notes for row in crosswalk_rows if row.notes}
-                ),
+                "notes": sorted({row.notes for row in crosswalk_rows if row.notes}),
             }
         )
     return result
@@ -1090,9 +1075,7 @@ def filing_map(
     }
     entities = {
         item.id: item
-        for item in session.scalars(
-            select(FilingEntity).where(FilingEntity.id.in_(entity_ids))
-        )
+        for item in session.scalars(select(FilingEntity).where(FilingEntity.id.in_(entity_ids)))
     }
     documents = {
         item.id: item
@@ -1179,9 +1162,7 @@ def changes(
             }
             for row in rows
         ]
-    rows = session.scalars(
-        select(TaxFactChange).order_by(TaxFactChange.id.desc()).limit(limit)
-    )
+    rows = session.scalars(select(TaxFactChange).order_by(TaxFactChange.id.desc()).limit(limit))
     return [
         {
             "id": row.id,

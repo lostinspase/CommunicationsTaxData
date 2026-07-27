@@ -197,11 +197,7 @@ def test_daily_assessment_tracks_new_and_unchanged_addresses_by_level(session, t
 
     second = assess_service_locations(session, as_of=date(2026, 7, 27))
     session.flush()
-    latest = (
-        session.query(LocationAssessment)
-        .order_by(LocationAssessment.id.desc())
-        .first()
-    )
+    latest = session.query(LocationAssessment).order_by(LocationAssessment.id.desc()).first()
     assert second["new_addresses"] == 0
     assert second["new_jurisdiction_profiles"] == 0
     assert second["changed_assessments"] == 0

@@ -29,16 +29,11 @@ def build_customer_location_profiles(
         .join(Jurisdiction, Jurisdiction.id == PostalAssignment.jurisdiction_id)
         .where(
             PostalAssignment.valid_from <= effective_date,
-            (
-                PostalAssignment.valid_to.is_(None)
-                | (PostalAssignment.valid_to >= effective_date)
-            ),
+            (PostalAssignment.valid_to.is_(None) | (PostalAssignment.valid_to >= effective_date)),
         )
     )
     for assignment, jurisdiction in rows:
-        assignments.setdefault(assignment.postal_code, []).append(
-            (assignment, jurisdiction)
-        )
+        assignments.setdefault(assignment.postal_code, []).append((assignment, jurisdiction))
 
     grouped: dict[tuple[str, str | None], list[CustomerTaxNeed]] = {}
     for customer in customers:
@@ -47,9 +42,9 @@ def build_customer_location_profiles(
             and re.fullmatch(r"\d{5}", customer.postal_code)
             and (customer.country_code or "").upper() in {"US", "USA"}
         ):
-            grouped.setdefault(
-                (customer.postal_code, customer.plus_four or None), []
-            ).append(customer)
+            grouped.setdefault((customer.postal_code, customer.plus_four or None), []).append(
+                customer
+            )
 
     counts = {
         "priority_location_keys": len(grouped),
@@ -59,9 +54,7 @@ def build_customer_location_profiles(
         "ambiguous_profiles": 0,
         "calculation_ready_profiles": 0,
     }
-    ordered_groups = sorted(
-        grouped.items(), key=lambda item: (item[0][0], item[0][1] or "")
-    )
+    ordered_groups = sorted(grouped.items(), key=lambda item: (item[0][0], item[0][1] or ""))
     for (postal_code, plus_four), group in ordered_groups:
         candidates = assignments.get(postal_code, [])
         member_payload = sorted(

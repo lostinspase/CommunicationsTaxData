@@ -32,9 +32,7 @@ class SourceMonitor:
     @staticmethod
     def _due_sources(session: Session, *, now, force: bool) -> list[Source]:
         sources = list(
-            session.scalars(
-                select(Source).where(Source.active.is_(True)).order_by(Source.id)
-            )
+            session.scalars(select(Source).where(Source.active.is_(True)).order_by(Source.id))
         )
         if force:
             return sources
@@ -51,10 +49,7 @@ class SourceMonitor:
             source
             for source in sources
             if source.last_checked_at is None
-            or (
-                source.id in failed_source_ids
-                and source.last_checked_at < now - timedelta(days=1)
-            )
+            or (source.id in failed_source_ids and source.last_checked_at < now - timedelta(days=1))
             or source.last_checked_at < now - timedelta(days=source.cadence_days)
         ]
 

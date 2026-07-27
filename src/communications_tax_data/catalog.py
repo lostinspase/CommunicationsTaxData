@@ -68,8 +68,7 @@ CORE_SOURCES = [
         "tax_level": 1,
         "cadence_days": 30,
         "notes": (
-            "Annual state/territory 911 fee reports; not a substitute for current "
-            "local statutes."
+            "Annual state/territory 911 fee reports; not a substitute for current local statutes."
         ),
     },
     {
@@ -345,10 +344,7 @@ STATE_RULE_SOURCES = [
         "name": "New York telecommunications excise tax rates and base",
         "publisher": "New York State Department of Taxation and Finance",
         "source_type": "state_revenue_rate",
-        "url": (
-            "https://www.tax.ny.gov/data/stats/ter/fiscal-year26/"
-            "corporation-tax.htm"
-        ),
+        "url": ("https://www.tax.ny.gov/data/stats/ter/fiscal-year26/corporation-tax.htm"),
         "tax_level": 1,
         "state_code": "NY",
         "parser": "state-rules",
@@ -381,8 +377,7 @@ NY_LOCAL_UTILITY_RULES = [
         "local_citation": "Johnstown City Code Chapter 278, Article I",
         "telecom_evidence": "incorporated_tax_law_186_a",
         "additional_citation": (
-            "New York Tax Law § 186-a(2), as incorporated under "
-            "General City Law § 20-b"
+            "New York Tax Law § 186-a(2), as incorporated under General City Law § 20-b"
         ),
         "filing_entity_name": "City of Johnstown — City Treasurer",
         "payment_recipient": "City Treasurer, City of Johnstown",

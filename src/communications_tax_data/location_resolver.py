@@ -461,9 +461,7 @@ def resolve_priority_locations(
             current_rows[assignment_key] = assignment
             counts[f"assignments_{action}"] += 1
             counts[resolution.status if resolution.status in counts else "errors"] += 1
-            stats.inserted += int(action in {"inserted", "superseded"}) + int(
-                profile_created
-            )
+            stats.inserted += int(action in {"inserted", "superseded"}) + int(profile_created)
             stats.updated += int(action in {"refreshed", "superseded"})
         if retire_missing:
             retired_at = utcnow()

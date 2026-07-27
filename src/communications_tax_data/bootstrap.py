@@ -32,9 +32,7 @@ def bootstrap_from_sqlite(
                 for table in tables
             }
             if any(populated.values()) and not replace:
-                details = ", ".join(
-                    f"{name}={count}" for name, count in populated.items() if count
-                )
+                details = ", ".join(f"{name}={count}" for name, count in populated.items() if count)
                 raise ValueError(
                     f"Target CTD tables are not empty ({details}); pass replace=True explicitly"
                 )

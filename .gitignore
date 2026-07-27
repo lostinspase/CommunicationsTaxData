@@ -15,4 +15,5 @@ logs/
 runtime/
 reports/*.csv
 reports/*.json
+data/exemption_forms/
 !reports/.gitkeep

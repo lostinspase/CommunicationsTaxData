@@ -138,9 +138,9 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 session.execute(BenchmarkRate.__table__.insert(), batch)
                 counts["rates"] += len(batch)
                 session.flush()
-            last_change_id = session.scalar(
-                select(func.max(BenchmarkRateChange.benchmark_change_id))
-            ) or 0
+            last_change_id = (
+                session.scalar(select(func.max(BenchmarkRateChange.benchmark_change_id))) or 0
+            )
             change_sql = text(
                 """
                 SELECT id AS benchmark_change_id, `timestamp` AS source_timestamp,
@@ -153,9 +153,7 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 """
             )
             for batch in _chunks(
-                connection.execute(
-                    change_sql, {"last_change_id": last_change_id}
-                ).mappings()
+                connection.execute(change_sql, {"last_change_id": last_change_id}).mappings()
             ):
                 now = utcnow()
                 for row in batch:
@@ -287,9 +285,7 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                         benchmark_tax_level=row["tax_level"],
                         benchmark_tax_category=row["tax_category"],
                         benchmark_tax_description=row["tax_description"],
-                        ctd_tax_concept=_tax_concept(
-                            row["tax_category"], row["tax_description"]
-                        ),
+                        ctd_tax_concept=_tax_concept(row["tax_category"], row["tax_description"]),
                         mapping_status="proposed",
                         mapping_method="normalized_description",
                         confidence="candidate",
@@ -301,9 +297,7 @@ def sync_benchmark(session: Session) -> dict[str, int]:
                 )
                 existing.add(signature)
                 counts["tax_type_candidates_inserted"] += 1
-            counts["federal_usf_crosswalks_enriched"] = (
-                enrich_federal_usf_crosswalk(session)
-            )
+            counts["federal_usf_crosswalks_enriched"] = enrich_federal_usf_crosswalk(session)
         run.status = "success"
         run.source_count = 5
         run.records_seen = (

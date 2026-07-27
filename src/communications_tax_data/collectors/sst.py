@@ -146,9 +146,7 @@ class SstRateCollector:
         }
         facts = {
             (item.natural_key, item.effective_from): item
-            for item in session.scalars(
-                select(TaxFact).where(TaxFact.source_id == source.id)
-            )
+            for item in session.scalars(select(TaxFact).where(TaxFact.source_id == source.id))
         }
         reader = csv.reader(io.StringIO(csv_content))
         for line_number, row in enumerate(reader, start=1):

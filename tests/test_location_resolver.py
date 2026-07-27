@@ -210,16 +210,10 @@ def test_complete_footprint_run_retires_addresses_no_longer_needed(session):
 
     assert result["addresses_skipped_unchanged"] == 1
     assert result["assignments_retired"] == 1
-    current = (
-        session.query(AddressAssignment)
-        .filter(AddressAssignment.valid_to.is_(None))
-        .all()
-    )
+    current = session.query(AddressAssignment).filter(AddressAssignment.valid_to.is_(None)).all()
     assert [item.source_address_id for item in current] == [201]
     retired = (
-        session.query(AddressAssignment)
-        .filter(AddressAssignment.source_address_id == 202)
-        .one()
+        session.query(AddressAssignment).filter(AddressAssignment.source_address_id == 202).one()
     )
     assert retired.valid_to is not None
 

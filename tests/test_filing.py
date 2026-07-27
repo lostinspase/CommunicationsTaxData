@@ -51,12 +51,8 @@ def test_federal_filing_seed_is_idempotent(session):
 
 def test_local_ny_utility_rule_maps_rate_and_recipient_without_claiming_form(session):
     seed_catalog(session)
-    config = next(
-        item for item in NY_LOCAL_UTILITY_RULES if item["locality"] == "Johnstown"
-    )
-    source = session.scalar(
-        select(Source).where(Source.code == config["source"]["code"])
-    )
+    config = next(item for item in NY_LOCAL_UTILITY_RULES if item["locality"] == "Johnstown")
+    source = session.scalar(select(Source).where(Source.code == config["source"]["code"]))
     run = start_run(session, "state-rules")
     content = """
         <html><body>
@@ -78,10 +74,7 @@ def test_local_ny_utility_rule_maps_rate_and_recipient_without_claiming_form(ses
 
     assert (seen, inserted) == (1, 1)
     fact = session.scalar(
-        select(TaxFact).where(
-            TaxFact.natural_key
-            == "ny:local:johnstown:utility-gross-receipts"
-        )
+        select(TaxFact).where(TaxFact.natural_key == "ny:local:johnstown:utility-gross-receipts")
     )
     assert str(fact.rate) == "0.010000000"
     assert "modern VoIP" in fact.base_rule

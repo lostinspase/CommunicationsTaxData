@@ -57,9 +57,7 @@ def assess_service_locations(
         )
     )
     profile_ids = {
-        item.location_profile_id
-        for item in assignments
-        if item.location_profile_id is not None
+        item.location_profile_id for item in assignments if item.location_profile_id is not None
     }
     profiles = {
         item.id: item
@@ -88,9 +86,7 @@ def assess_service_locations(
                 }
             )
 
-    rates_by_pcode: dict[int, dict[int, set[int]]] = defaultdict(
-        lambda: defaultdict(set)
-    )
+    rates_by_pcode: dict[int, dict[int, set[int]]] = defaultdict(lambda: defaultdict(set))
     federal_tax_types: set[int] = set()
     for rate in session.scalars(
         select(BenchmarkRate).where(
@@ -126,9 +122,9 @@ def assess_service_locations(
     ):
         if mapping.public_fact_natural_key not in current_fact_keys:
             continue
-        fact_maps_by_route[
-            (mapping.benchmark_tax_level, mapping.benchmark_tax_type)
-        ].append(mapping)
+        fact_maps_by_route[(mapping.benchmark_tax_level, mapping.benchmark_tax_type)].append(
+            mapping
+        )
     cited_crosswalk_routes = {
         (mapping.benchmark_tax_level, mapping.benchmark_tax_type)
         for mapping in session.scalars(select(TaxTypeCrosswalk))
@@ -220,9 +216,7 @@ def assess_service_locations(
                 benchmark_tax_types=(
                     federal_tax_types
                     if level == 0
-                    else rates_by_pcode.get(assignment.benchmark_p_code or -1, {}).get(
-                        level, set()
-                    )
+                    else rates_by_pcode.get(assignment.benchmark_p_code or -1, {}).get(level, set())
                 ),
                 fact_maps_by_route=fact_maps_by_route,
                 cited_crosswalk_routes=cited_crosswalk_routes,
@@ -265,8 +259,7 @@ def assess_service_locations(
         if assignment.location_profile_id is not None:
             seen_profile_ids.add(assignment.location_profile_id)
         profile_changed = bool(
-            previous is not None
-            and previous.location_profile_id != assignment.location_profile_id
+            previous is not None and previous.location_profile_id != assignment.location_profile_id
         )
         changed = is_new or previous.assessment_sha256 != digest
         complete = not manual_gap_levels
@@ -320,9 +313,7 @@ def assess_service_locations(
 
     session.flush()
     counts["resolver_statuses"] = dict(sorted(resolver_statuses.items()))
-    counts["level_summary"] = {
-        str(level): level_summary[level] for level in range(4)
-    }
+    counts["level_summary"] = {str(level): level_summary[level] for level in range(4)}
     counts["gap_codes"] = dict(all_gap_codes.most_common())
     stats.inserted = len(snapshot_rows)
     stats.details = counts
@@ -443,10 +434,7 @@ def _fact_map_applies(
     state_code: str | None,
     p_code: int | None,
 ) -> bool:
-    return (
-        mapping.state_code in (None, state_code)
-        and mapping.p_code in (None, p_code)
-    )
+    return mapping.state_code in (None, state_code) and mapping.p_code in (None, p_code)
 
 
 def _filing_map_applies(
@@ -536,11 +524,15 @@ def write_location_assessment_report(
         )
         + "\n"
     )
-    fieldnames = list(report_rows[0]) if report_rows else [
-        "assessment_date",
-        "source_address_id",
-        "assessment_complete",
-    ]
+    fieldnames = (
+        list(report_rows[0])
+        if report_rows
+        else [
+            "assessment_date",
+            "source_address_id",
+            "assessment_complete",
+        ]
+    )
     with gaps_path.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()

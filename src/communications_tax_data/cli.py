@@ -20,6 +20,7 @@ from communications_tax_data.collectors import (
 from communications_tax_data.comparison import compare_coverage, write_exception_report
 from communications_tax_data.config import get_settings
 from communications_tax_data.db import create_schema, get_engine, session_scope
+from communications_tax_data.exemption_forms import catalog_exemption_forms
 from communications_tax_data.filing import (
     seed_federal_filing_map,
     seed_state_filing_and_benchmark_maps,
@@ -27,7 +28,13 @@ from communications_tax_data.filing import (
 from communications_tax_data.location_assessment import assess_service_locations
 from communications_tax_data.location_profiles import build_customer_location_profiles
 from communications_tax_data.location_resolver import resolve_priority_locations
+from communications_tax_data.nexus import (
+    assess_nexus,
+    seed_nexus_rules,
+    sync_nexus_exposures,
+)
 from communications_tax_data.product_demand import sync_product_demand
+from communications_tax_data.sales_tax_file import import_sales_tax_zip_file
 from communications_tax_data.tax_determination import assess_service_tax_demand
 
 app = typer.Typer(no_args_is_help=True, help="Apeiron public tax-data collection agent.")
@@ -62,9 +69,7 @@ def seed_source_catalog() -> None:
 
 @app.command("collect")
 def collect(
-    collector: str = typer.Option(
-        "all", help="all, federal, state, sst, census, or monitor"
-    ),
+    collector: str = typer.Option("all", help="all, federal, state, sst, census, or monitor"),
     force_monitor: bool = typer.Option(False, help="Check all monitored sources now."),
 ) -> None:
     """Run one or all public-source collectors."""
@@ -124,6 +129,68 @@ def seed_filing_map() -> None:
             "federal": seed_federal_filing_map(session),
             "states": seed_state_filing_and_benchmark_maps(session),
         }
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("seed-nexus")
+def seed_nexus() -> None:
+    """Seed the effective-dated 50-state nexus screening matrix and API candidates."""
+    create_schema()
+    with session_scope() as session:
+        counts = seed_nexus_rules(session)
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("sync-nexus-exposure")
+def sync_nexus_exposure() -> None:
+    """Refresh previous/current calendar-year state revenue screens."""
+    _setup_logging()
+    create_schema()
+    with session_scope() as session:
+        counts = sync_nexus_exposures(session)
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("assess-nexus")
+def assess_nexus_command() -> None:
+    """Create the current 50-state nexus and registration gap snapshot."""
+    create_schema()
+    with session_scope() as session:
+        counts = assess_nexus(session)
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("import-sales-tax-file")
+def import_sales_tax_file(
+    archive: Path = typer.Argument(
+        ...,
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="FastSalesTax basic ZIP-rate archive.",
+    ),
+) -> None:
+    """Import a licensed basic sales/use ZIP file as non-authoritative candidates."""
+    create_schema()
+    with session_scope() as session:
+        counts = import_sales_tax_zip_file(session, archive)
+    typer.echo(json.dumps(counts, indent=2))
+
+
+@app.command("catalog-exemption-forms")
+def catalog_exemption_form_directory(
+    directory: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=False,
+        readable=True,
+        help="Directory containing authorized exemption-form PDF downloads.",
+    ),
+) -> None:
+    """Hash and catalog downloaded exemption forms; PDF contents stay on disk."""
+    create_schema()
+    with session_scope() as session:
+        counts = catalog_exemption_forms(session, directory)
     typer.echo(json.dumps(counts, indent=2))
 
 

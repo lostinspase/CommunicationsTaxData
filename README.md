@@ -20,6 +20,9 @@ The first release intentionally reports what public data cannot reproduce.
 | Census address/coordinate geography | All active service addresses | `resolve-locations` | Resolves core geography; not proof of tax or special-district boundaries |
 | Daily location assessment | All active service addresses × tax levels 0–3 | `assess-locations` | Separates jurisdiction, public-rule, filing, and manual-review gaps |
 | Service-aware tax determination | Actual trailing-year billed products and usage | `sync-products` + `assess-services` | Shadow mode; candidate product mappings and interpretive rules require review |
+| 50-state nexus screen | Effective-dated economic thresholds plus Apeiron physical/registration decisions | `seed-nexus` + `sync-nexus-exposure` + `assess-nexus` | Invoice revenue is a prioritization proxy until each statutory numerator is reviewed |
+| Basic sales/use ZIP file | 41,319 ZIPs and 110,510 distinct combined-rate candidates in the July 2026 archive | `import-sales-tax-file` | The supplied 2.63m rows omit the actual ZIP+4 range and rate components |
+| Exemption-form inventory | 477 authenticated FastSalesTax PDFs across 45 states/DC | `catalog-exemption-forms` | Forms are evidence artifacts, not taxability or nexus decisions; source anomalies stay open |
 | State authority register | 50 PUC/PSC and 50 revenue authority sites | `monitor` | Site health is not counted as rule coverage |
 | CA/NY/PA state rules | CPUC/CDTFA, NY DTF sales/wireless/excise, PA DOR | `state` | Source-verified vertical slices; none is yet calculation-ready |
 | NY municipal utility GRT | Eight demand-ranked adopted city/village ordinances | `state` | Rate/base and recipient verified; local return forms remain open |
@@ -65,6 +68,7 @@ Open <http://127.0.0.1:8080>. JSON endpoints are available at:
 - `/api/tax-determination?manual_only=true`
 - `/api/product-taxonomy`
 - `/api/taxability-rules?review_status=reviewed`
+- `/api/nexus`
 
 ## Database configuration
 
@@ -102,6 +106,9 @@ uv run ctd seed-catalog
 uv run ctd collect --collector all
 uv run ctd benchmark-sync
 uv run ctd sync-products
+uv run ctd seed-nexus
+uv run ctd sync-nexus-exposure
+uv run ctd assess-nexus
 uv run ctd resolve-locations
 uv run ctd seed-filing-map
 uv run ctd assess-locations --output-dir reports
@@ -179,7 +186,15 @@ Apeiron application tables.
 - `ctd_taxability_rule`: reviewed service applicability, sourcing, base, calculation
   method, filing requirement, citation, and public-fact link.
 - `ctd_service_tax_assessment`: daily shadow determinations with independent product,
-  location/sourcing, taxability, exemption, filing, and calculation readiness gates.
+  location/sourcing, nexus/registration, taxability, exemption, filing, and calculation
+  readiness gates.
+- `ctd_nexus_rule`, `ctd_company_nexus_determination`, `ctd_state_nexus_exposure`, and
+  `ctd_nexus_assessment`: effective-dated law screens, reviewed company facts,
+  invoice-derived exposure proxies, and append-only daily state outcomes.
+- `ctd_sales_tax_provider` and `ctd_sales_tax_zip_rate`: Type 1 API candidates and
+  deduplicated combined-rate candidates from licensed ZIP files.
+- `ctd_exemption_form_artifact` and `ctd_exemption_form_state_check`: hashed form
+  metadata plus daily available/not-applicable/missing/anomaly state inventory results.
 - `ctd_coverage_exception`: versioned, row-level missing-rate, rate-mismatch, geographic,
   parser, and filing-map gaps.
 
@@ -264,7 +279,9 @@ rules can make a demand row calculation-ready. See
 [`docs/tax-determination-v1.md`](docs/tax-determination-v1.md).
 
 See [docs/architecture.md](docs/architecture.md) and
-[docs/source-coverage.md](docs/source-coverage.md). Production installation and
+[docs/source-coverage.md](docs/source-coverage.md). The nexus, sales-tax file, API, and
+exemption-form workflow is detailed in
+[`docs/nexus-and-sales-tax.md`](docs/nexus-and-sales-tax.md). Production installation and
 operations are documented in
 [docs/production-deployment.md](docs/production-deployment.md).
 

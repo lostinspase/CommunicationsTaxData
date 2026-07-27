@@ -76,11 +76,7 @@ def test_location_profile_is_stable_and_not_calculation_ready(session):
 
     first = build_customer_location_profiles(session, as_of=date(2026, 7, 25))
     session.flush()
-    profile = (
-        session.query(LocationProfile)
-        .filter(LocationProfile.plus_four == "0001")
-        .one()
-    )
+    profile = session.query(LocationProfile).filter(LocationProfile.plus_four == "0001").one()
 
     assert first["profiles_inserted"] == 2
     assert profile.profile_code.startswith("CTD-")

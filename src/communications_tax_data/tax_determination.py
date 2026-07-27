@@ -16,6 +16,7 @@ from communications_tax_data.collectors.base import CollectionStats, finish_run,
 from communications_tax_data.models import (
     AddressAssignment,
     BenchmarkRate,
+    CompanyNexusDetermination,
     CustomerExemption,
     CustomerTaxProfile,
     Jurisdiction,
@@ -29,6 +30,11 @@ from communications_tax_data.models import (
     TaxFilingMap,
     TaxTypeCrosswalk,
     utcnow,
+)
+from communications_tax_data.nexus import (
+    SALES_USE_CONCEPTS,
+    current_company_nexus,
+    nexus_gate_status,
 )
 from communications_tax_data.product_demand import SOURCE_SYSTEM
 
@@ -157,6 +163,7 @@ def assess_service_tax_demand(
             )
         )
     )
+    nexus_by_state = current_company_nexus(session, assessment_date)
     previous_by_demand: dict[str, ServiceTaxAssessment] = {}
     for prior in session.scalars(
         select(ServiceTaxAssessment).order_by(
@@ -179,6 +186,7 @@ def assess_service_tax_demand(
         "product_mapping_ready": 0,
         "location_ready": 0,
         "taxability_ready": 0,
+        "nexus_ready": 0,
         "exemption_ready": 0,
         "filing_ready": 0,
         "calculation_ready": 0,
@@ -230,6 +238,7 @@ def assess_service_tax_demand(
                 rules=rules,
                 facts_by_key=facts_by_key,
                 filing_maps=filing_maps,
+                company_nexus=nexus_by_state.get((state_code or "", "sales_and_use")),
                 customer_profile=profiles.get(demand.customer_id),
                 exemptions=exemptions_by_customer.get(demand.customer_id, []),
             )
@@ -279,6 +288,7 @@ def assess_service_tax_demand(
                 product_mapping_ready=result["product_mapping_ready"],
                 location_ready=result["location_ready"],
                 taxability_ready=result["taxability_ready"],
+                nexus_ready=result["nexus_ready"],
                 exemption_ready=result["exemption_ready"],
                 filing_ready=result["filing_ready"],
                 calculation_ready=result["calculation_ready"],
@@ -313,6 +323,7 @@ def assess_service_tax_demand(
                 "product_mapping_ready",
                 "location_ready",
                 "taxability_ready",
+                "nexus_ready",
                 "exemption_ready",
                 "filing_ready",
                 "calculation_ready",
@@ -400,6 +411,7 @@ def _assess_demand(
     rules: list[TaxabilityRule],
     facts_by_key: dict[str, TaxFact],
     filing_maps: list[TaxFilingMap],
+    company_nexus: CompanyNexusDetermination | None,
     customer_profile: CustomerTaxProfile | None,
     exemptions: list[CustomerExemption],
 ) -> dict[str, Any]:
@@ -431,6 +443,7 @@ def _assess_demand(
     route_sourcing_ready = True
     filing_ready = True
     exemption_ready = True
+    nexus_ready = True
     estimated_total = Decimal("0")
     estimated_any = False
     for route_key, rate in sorted(route_rates.items()):
@@ -446,6 +459,7 @@ def _assess_demand(
             rules=rules,
             facts_by_key=facts_by_key,
             filing_maps=filing_maps,
+            company_nexus=company_nexus,
             customer_profile=customer_profile,
             exemptions=exemptions,
         )
@@ -456,6 +470,7 @@ def _assess_demand(
         resolved_route_count += int(route["resolved"])
         taxable_route_count += int(route["taxability"] == "taxable")
         filing_ready = filing_ready and route["filing_ready"]
+        nexus_ready = nexus_ready and route["nexus_ready"]
         exemption_ready = exemption_ready and route["exemption_ready"]
         route_calculations_ready = route_calculations_ready and route["calculation_ready"]
         route_sourcing_ready = route_sourcing_ready and route["sourcing_ready"]
@@ -472,6 +487,7 @@ def _assess_demand(
         product_mapping_ready
         and location_ready
         and taxability_ready
+        and nexus_ready
         and exemption_ready
         and filing_ready
         and route_calculations_ready
@@ -482,6 +498,7 @@ def _assess_demand(
         "product_mapping_ready": product_mapping_ready,
         "location_ready": location_ready,
         "taxability_ready": taxability_ready,
+        "nexus_ready": nexus_ready,
         "exemption_ready": exemption_ready,
         "filing_ready": filing_ready,
         "calculation_ready": calculation_ready,
@@ -512,6 +529,7 @@ def _assess_route(
     rules: list[TaxabilityRule],
     facts_by_key: dict[str, TaxFact],
     filing_maps: list[TaxFilingMap],
+    company_nexus: CompanyNexusDetermination | None,
     customer_profile: CustomerTaxProfile | None,
     exemptions: list[CustomerExemption],
 ) -> dict[str, Any]:
@@ -667,6 +685,32 @@ def _assess_route(
             estimated_tax_amount="0.000000",
         )
 
+    nexus_ready = True
+    if concept in SALES_USE_CONCEPTS:
+        gate_status, nexus_ready = nexus_gate_status(company_nexus)
+        if gate_status == "not_required" and company_nexus is not None:
+            return _route_result(
+                rate=rate,
+                status="resolved",
+                resolved=True,
+                concept=concept,
+                taxability="not_collectible_no_nexus",
+                filing_ready=True,
+                exemption_ready=True,
+                nexus_ready=True,
+                calculation_ready=sourcing_ready,
+                gap_codes=sorted(gaps),
+                reason="reviewed_nexus_not_required",
+                rule=rule,
+                estimated_tax_amount="0.000000",
+            )
+        if not nexus_ready:
+            gaps.add(
+                "NEXUS_DETERMINATION_MISSING"
+                if company_nexus is None
+                else "NEXUS_OR_REGISTRATION_REVIEW_REQUIRED"
+            )
+
     fact = facts_by_key.get(rule.tax_fact_natural_key or "")
     if fact is None:
         gaps.add("MISSING_PUBLIC_FACT_LINK")
@@ -691,6 +735,7 @@ def _assess_route(
         and estimate is not None
         and exemption_ready
         and filing_ready
+        and nexus_ready
         and sourcing_ready
         and not calculation_gap
     )
@@ -702,6 +747,7 @@ def _assess_route(
         taxability="taxable",
         filing_ready=filing_ready,
         exemption_ready=exemption_ready,
+        nexus_ready=nexus_ready,
         calculation_ready=calculation_ready,
         gap_codes=sorted(gaps),
         reason="reviewed_taxability_rule",
@@ -723,6 +769,7 @@ def _route_result(
     calculation_ready: bool,
     gap_codes: list[str],
     reason: str,
+    nexus_ready: bool = True,
     rule: TaxabilityRule | None = None,
     fact: TaxFact | None = None,
     estimated_tax_amount: str | None = None,
@@ -740,6 +787,7 @@ def _route_result(
         "public_fact": fact.natural_key if fact else None,
         "public_rate": str(fact.rate) if fact and fact.rate is not None else None,
         "filing_ready": filing_ready,
+        "nexus_ready": nexus_ready,
         "exemption_ready": exemption_ready,
         "sourcing_ready": "SOURCING_ROLE_RULE_MISMATCH" not in gap_codes,
         "calculation_ready": calculation_ready,
@@ -901,6 +949,7 @@ def _report_row(
         "product_mapping_ready": result["product_mapping_ready"],
         "location_ready": result["location_ready"],
         "taxability_ready": result["taxability_ready"],
+        "nexus_ready": result["nexus_ready"],
         "exemption_ready": result["exemption_ready"],
         "filing_ready": result["filing_ready"],
         "calculation_ready": result["calculation_ready"],
@@ -1062,6 +1111,7 @@ def latest_service_tax_data(
         ("product_mapping_ready", "Product mapping"),
         ("location_ready", "Location / sourcing"),
         ("taxability_ready", "Taxability"),
+        ("nexus_ready", "Nexus / registration"),
         ("exemption_ready", "Exemption evidence"),
         ("filing_ready", "Filing route"),
         ("calculation_ready", "Calculation"),
@@ -1129,6 +1179,7 @@ def latest_service_tax_data(
                 "product_mapping_ready": row.product_mapping_ready,
                 "location_ready": row.location_ready,
                 "taxability_ready": row.taxability_ready,
+                "nexus_ready": row.nexus_ready,
                 "exemption_ready": row.exemption_ready,
                 "filing_ready": row.filing_ready,
                 "calculation_ready": row.calculation_ready,

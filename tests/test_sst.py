@@ -14,14 +14,8 @@ def test_discovers_current_rate_files():
     <a href="../">parent</a>
     """
     assert SstRateCollector._discover(html) == {
-        "AR": (
-            "https://www.streamlinedsalestax.org/ratesandboundry/Rates/"
-            "ARR2026Q3JUN02.csv"
-        ),
-        "KS": (
-            "https://www.streamlinedsalestax.org/ratesandboundry/Rates/"
-            "KSR2026Q3MAY20.zip"
-        ),
+        "AR": ("https://www.streamlinedsalestax.org/ratesandboundry/Rates/ARR2026Q3JUN02.csv"),
+        "KS": ("https://www.streamlinedsalestax.org/ratesandboundry/Rates/KSR2026Q3MAY20.zip"),
     }
 
 

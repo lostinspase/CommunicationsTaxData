@@ -8,23 +8,16 @@ from sqlalchemy.orm import Session
 from communications_tax_data.models import TaxTypeCrosswalk
 
 ECFR_54_706_URL = (
-    "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/"
-    "part-54/subpart-H/section-54.706"
+    "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-54/subpart-H/section-54.706"
 )
 ECFR_54_709_URL = (
-    "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/"
-    "part-54/subpart-H/section-54.709"
+    "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-54/subpart-H/section-54.709"
 )
 ECFR_54_712_URL = (
-    "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/"
-    "part-54/subpart-H/section-54.712"
+    "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-54/subpart-H/section-54.712"
 )
-FCC_2026_FORM_499A_INSTRUCTIONS_URL = (
-    "https://docs.fcc.gov/public/attachments/DA-25-308A3.pdf"
-)
-FCC_2006_CONTRIBUTION_ORDER_URL = (
-    "https://docs.fcc.gov/public/attachments/FCC-06-94A1.pdf"
-)
+FCC_2026_FORM_499A_INSTRUCTIONS_URL = "https://docs.fcc.gov/public/attachments/DA-25-308A3.pdf"
+FCC_2006_CONTRIBUTION_ORDER_URL = "https://docs.fcc.gov/public/attachments/FCC-06-94A1.pdf"
 FUSF_PUBLIC_SOURCES = (
     ECFR_54_706_URL,
     ECFR_54_709_URL,
@@ -43,20 +36,16 @@ class FederalUsfVariant:
 
 _GENERAL_CITATION = "47 USC § 254(d); 47 CFR §§ 54.706(b), 54.709"
 _WIRELESS_CITATION = (
-    "47 CFR § 54.706(a)(1); 2026 FCC Form 499-A Instructions "
-    "§§ IV.C.4.c and IV.C.5.g"
+    "47 CFR § 54.706(a)(1); 2026 FCC Form 499-A Instructions §§ IV.C.4.c and IV.C.5.g"
 )
 _VOIP_CITATION = (
-    "47 CFR § 54.706(a)(18); 2026 FCC Form 499-A Instructions "
-    "§§ IV.C.4.b, IV.C.4.d, and IV.C.5.g"
+    "47 CFR § 54.706(a)(18); 2026 FCC Form 499-A Instructions §§ IV.C.4.b, IV.C.4.d, and IV.C.5.g"
 )
 _FIXED_LOCAL_CITATION = (
-    "47 CFR §§ 54.706(a)-(b), 54.709; 2026 FCC Form 499-A "
-    "Instructions § IV.C.4.b (Lines 303/404)"
+    "47 CFR §§ 54.706(a)-(b), 54.709; 2026 FCC Form 499-A Instructions § IV.C.4.b (Lines 303/404)"
 )
 _NON_ITEMIZED_CITATION = (
-    "47 CFR §§ 54.706(b), 54.709, 54.712(a); 2026 FCC Form "
-    "499-A Instructions § IV.C.4.e (Line 403)"
+    "47 CFR §§ 54.706(b), 54.709, 54.712(a); 2026 FCC Form 499-A Instructions § IV.C.4.e (Line 403)"
 )
 
 

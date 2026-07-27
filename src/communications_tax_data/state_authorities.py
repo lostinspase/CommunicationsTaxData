@@ -557,6 +557,4 @@ STATE_AUTHORITIES = (
     ),
 )
 
-STATE_AUTHORITY_BY_CODE = {
-    profile.state_code: profile for profile in STATE_AUTHORITIES
-}
+STATE_AUTHORITY_BY_CODE = {profile.state_code: profile for profile in STATE_AUTHORITIES}

@@ -183,12 +183,8 @@ class StateRuleCollector:
         run = start_run(session, self.name)
         stats = CollectionStats()
         jurisdictions: dict[str, Jurisdiction] = {}
-        local_configs = {
-            item["source"]["code"]: item for item in NY_LOCAL_UTILITY_RULES
-        }
-        sources = STATE_RULE_SOURCES + [
-            item["source"] for item in NY_LOCAL_UTILITY_RULES
-        ]
+        local_configs = {item["source"]["code"]: item for item in NY_LOCAL_UTILITY_RULES}
+        sources = STATE_RULE_SOURCES + [item["source"] for item in NY_LOCAL_UTILITY_RULES]
         with http_client() as client:
             for item in sources:
                 source, created = get_or_create_source(session, **item)
@@ -282,23 +278,17 @@ class StateRuleCollector:
         if source.code == "state-rule-ca-cpuc-user-fee":
             return self._ca_user_fee(session, run, source, jurisdiction, content)
         if source.code == "state-rule-ca-cdtfa-mobile":
-            return self._ca_mobile_taxability(
-                session, run, source, jurisdiction, content
-            )
+            return self._ca_mobile_taxability(session, run, source, jurisdiction, content)
         if source.code == "state-rule-pa-telecom-grt":
             return self._pa_grt(session, run, source, jurisdiction, content)
         if source.code == "state-rule-pa-sales-use-rate":
             return self._pa_sales_rate(session, run, source, jurisdiction, content)
         if source.code == "state-rule-pa-telecom-taxability":
-            return self._pa_telecom_taxability(
-                session, run, source, jurisdiction, content
-            )
+            return self._pa_telecom_taxability(session, run, source, jurisdiction, content)
         if source.code == "state-rule-ny-sales-rates":
             return self._ny_sales_rates(session, run, source, jurisdiction, content)
         if source.code == "state-rule-ny-telecom-taxability":
-            return self._ny_telecom_taxability(
-                session, run, source, jurisdiction, content
-            )
+            return self._ny_telecom_taxability(session, run, source, jurisdiction, content)
         if source.code == "state-rule-ny-wireless-postpaid":
             return self._ny_wireless_surcharge(
                 session,
@@ -318,9 +308,7 @@ class StateRuleCollector:
                 prepaid=True,
             )
         if source.code == "state-rule-ny-telecom-excise":
-            return self._ny_telecom_excise(
-                session, run, source, jurisdiction, content
-            )
+            return self._ny_telecom_excise(session, run, source, jurisdiction, content)
         raise ValueError(f"No state-rule parser for {source.code}")
 
     def _ny_local_utility_grt(
@@ -352,12 +340,8 @@ class StateRuleCollector:
         telecom_evidence = config.get("telecom_evidence", "direct_ordinance")
         telecom_valid = {
             "direct_ordinance": direct_telecom,
-            "incorporated_tax_law_186_a": bool(
-                re.search(r"§\s*186-a", text, re.IGNORECASE)
-            ),
-            "incorporated_village_law_5_530": bool(
-                re.search(r"§\s*5-530", text, re.IGNORECASE)
-            ),
+            "incorporated_tax_law_186_a": bool(re.search(r"§\s*186-a", text, re.IGNORECASE)),
+            "incorporated_village_law_5_530": bool(re.search(r"§\s*5-530", text, re.IGNORECASE)),
         }.get(telecom_evidence, False)
         required = (
             config["locality"].casefold() in text.casefold(),
@@ -367,14 +351,10 @@ class StateRuleCollector:
             or "wholly consummated within" in text.casefold(),
         )
         if rate_match is None or not all(required):
-            raise ValueError(
-                f"{config['locality']} utility-tax ordinance validation changed"
-            )
+            raise ValueError(f"{config['locality']} utility-tax ordinance validation changed")
         rate = Decimal(rate_match.group(1)) / 100
         if rate != Decimal("0.01"):
-            raise ValueError(
-                f"{config['locality']} utility-tax rate is no longer one percent"
-            )
+            raise ValueError(f"{config['locality']} utility-tax rate is no longer one percent")
 
         is_village = config["municipality_type"] == "village"
         jurisdiction = self._ny_local_jurisdiction(
@@ -391,9 +371,7 @@ class StateRuleCollector:
             },
         )
         enabling_citation = (
-            "New York Village Law § 5-530"
-            if is_village
-            else "New York General City Law § 20-b"
+            "New York Village Law § 5-530" if is_village else "New York General City Law § 20-b"
         )
         legal_citation = f"{config['local_citation']}; {enabling_citation}"
         if config.get("additional_citation"):
@@ -431,9 +409,7 @@ class StateRuleCollector:
             run=run,
             jurisdiction=jurisdiction,
             source=source,
-            natural_key=(
-                f"ny:local:{_slug(config['locality'])}:utility-gross-receipts"
-            ),
+            natural_key=(f"ny:local:{_slug(config['locality'])}:utility-gross-receipts"),
             tax_name=f"{config['locality']} utility gross receipts tax",
             tax_family="gross_receipts",
             service_category="local_telecommunications_utility_gross_receipts",
@@ -499,9 +475,7 @@ class StateRuleCollector:
     def _ny_sales_rates(
         self, session, run, source, jurisdiction, content: bytes
     ) -> tuple[int, int]:
-        text = " ".join(
-            page.extract_text() or "" for page in PdfReader(io.BytesIO(content)).pages
-        )
+        text = " ".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(content)).pages)
         normalized = re.sub(r"\s+", " ", text)
         effective_match = re.search(
             r"Effective\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})",
@@ -570,12 +544,7 @@ class StateRuleCollector:
             raw_name, raw_rate, reporting_code = match.groups()
             if "see New York City " in raw_name:
                 raw_name = raw_name.rsplit("see New York City ", 1)[-1]
-            name = (
-                raw_name.replace("*", "")
-                .replace(" – except", "")
-                .replace(" (city)", "")
-                .strip()
-            )
+            name = raw_name.replace("*", "").replace(" – except", "").replace(" (city)", "").strip()
             if not name or "New York State only" in name:
                 continue
             is_city = "(city)" in raw_name or name == "New York City"
@@ -599,9 +568,7 @@ class StateRuleCollector:
                 run=run,
                 jurisdiction=local,
                 source=source,
-                natural_key=(
-                    f"ny:dor:sales-use-local:{tax_level}:{_slug(name)}"
-                ),
+                natural_key=(f"ny:dor:sales-use-local:{tax_level}:{_slug(name)}"),
                 tax_name=f"{name} local sales and use tax",
                 tax_family="sales_and_use",
                 service_category="locally_taxable_sales_and_services",
@@ -710,9 +677,7 @@ class StateRuleCollector:
                 )
             )
         }[date_match.group(1)]
-        effective_from = date(
-            int(date_match.group(3)), month, int(date_match.group(2))
-        )
+        effective_from = date(int(date_match.group(3)), month, int(date_match.group(2)))
         state_amount = Decimal(state_match.group(1))
         flavor = "prepaid" if prepaid else "postpaid"
         unit = "per_retail_sale" if prepaid else "per_device_month"
@@ -814,10 +779,7 @@ class StateRuleCollector:
                 run=run,
                 jurisdiction=local,
                 source=source,
-                natural_key=(
-                    f"ny:dor:wireless-surcharge:{flavor}:local:"
-                    f"{tax_level}:{_slug(name)}"
-                ),
+                natural_key=(f"ny:dor:wireless-surcharge:{flavor}:local:{tax_level}:{_slug(name)}"),
                 tax_name=f"{name} local {flavor} wireless communications surcharge",
                 tax_family="public_safety",
                 service_category=f"{flavor}_wireless_communications_service",
@@ -908,9 +870,7 @@ class StateRuleCollector:
             inserted += int(created)
         return 2, inserted
 
-    def _ca_surcharge(
-        self, session, run, source, jurisdiction, content: bytes
-    ) -> tuple[int, int]:
+    def _ca_surcharge(self, session, run, source, jurisdiction, content: bytes) -> tuple[int, int]:
         rows = _table_rows(BeautifulSoup(content, "html.parser"))
         parsed: list[tuple[date, Decimal, list[str]]] = []
         for cells in rows:
@@ -924,9 +884,7 @@ class StateRuleCollector:
         parsed.sort(key=lambda row: row[0], reverse=True)
         inserted = 0
         for index, (effective_from, amount, cells) in enumerate(parsed):
-            effective_to = (
-                parsed[index - 1][0] - timedelta(days=1) if index > 0 else None
-            )
+            effective_to = parsed[index - 1][0] - timedelta(days=1) if index > 0 else None
             created = _upsert_fact(
                 session,
                 run=run,
@@ -952,29 +910,21 @@ class StateRuleCollector:
             inserted += int(created)
         return len(parsed), inserted
 
-    def _ca_user_fee(
-        self, session, run, source, jurisdiction, content: bytes
-    ) -> tuple[int, int]:
+    def _ca_user_fee(self, session, run, source, jurisdiction, content: bytes) -> tuple[int, int]:
         rows = _table_rows(BeautifulSoup(content, "html.parser"))
         parsed: list[tuple[date, Decimal, list[str]]] = []
         for cells in rows:
-            if len(cells) < 2 or not re.fullmatch(
-                r"\d{1,2}/\d{1,2}/\d{4}\*?", cells[0]
-            ):
+            if len(cells) < 2 or not re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}\*?", cells[0]):
                 continue
             rate_match = re.fullmatch(r"(\d+(?:\.\d+)?)%", cells[1])
             if rate_match:
-                parsed.append(
-                    (_date(cells[0]), Decimal(rate_match.group(1)) / 100, cells)
-                )
+                parsed.append((_date(cells[0]), Decimal(rate_match.group(1)) / 100, cells))
         if not parsed:
             raise ValueError("CPUC user-fee table format changed")
         parsed.sort(key=lambda row: row[0], reverse=True)
         inserted = 0
         for index, (effective_from, rate, cells) in enumerate(parsed):
-            effective_to = (
-                parsed[index - 1][0] - timedelta(days=1) if index > 0 else None
-            )
+            effective_to = parsed[index - 1][0] - timedelta(days=1) if index > 0 else None
             created = _upsert_fact(
                 session,
                 run=run,
@@ -1034,9 +984,7 @@ class StateRuleCollector:
         )
         return 1, int(created)
 
-    def _pa_grt(
-        self, session, run, source, jurisdiction, content: bytes
-    ) -> tuple[int, int]:
+    def _pa_grt(self, session, run, source, jurisdiction, content: bytes) -> tuple[int, int]:
         text = BeautifulSoup(content, "html.parser").get_text(" ", strip=True)
         match = re.search(
             r"gross receipts tax on telecommunications services is\s+(\d+)\s+mills",
@@ -1070,9 +1018,7 @@ class StateRuleCollector:
         )
         return 1, int(created)
 
-    def _pa_sales_rate(
-        self, session, run, source, jurisdiction, content: bytes
-    ) -> tuple[int, int]:
+    def _pa_sales_rate(self, session, run, source, jurisdiction, content: bytes) -> tuple[int, int]:
         text = BeautifulSoup(content, "html.parser").get_text(" ", strip=True)
         match = re.search(
             r"Pennsylvania sales tax rate is\s+(\d+(?:\.\d+)?)\s+percent",

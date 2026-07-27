@@ -197,12 +197,10 @@ def test_customer_priority_metrics_keep_zip_and_rate_denominators_separate(sessi
 
     result = compare_coverage(session, as_of=date(2026, 7, 24))
 
-    assert result["customer_priority_coverage"]["customer_active"][
-        "customer_zip_statistical"
-    ] == 100.0
-    assert result["customer_priority_coverage"]["customer_active"][
-        "tax_type_strict_rate"
-    ] == 100.0
+    assert (
+        result["customer_priority_coverage"]["customer_active"]["customer_zip_statistical"] == 100.0
+    )
+    assert result["customer_priority_coverage"]["customer_active"]["tax_type_strict_rate"] == 100.0
     metrics = {
         item.dimension: item
         for item in session.query(CoverageMetric)
@@ -260,19 +258,28 @@ def test_tax_coverage_counts_unique_nonzero_tax_types_only(session):
     session.commit()
 
     result = compare_coverage(session, as_of=date(2026, 7, 24))
-    metric = session.query(CoverageMetric).filter_by(
-        comparison_run_id=result["run_id"],
-        scope="benchmark_total",
-        dimension="tax_type_strict_rate",
-    ).one()
+    metric = (
+        session.query(CoverageMetric)
+        .filter_by(
+            comparison_run_id=result["run_id"],
+            scope="benchmark_total",
+            dimension="tax_type_strict_rate",
+        )
+        .one()
+    )
 
     assert result["active_nonzero_benchmark_tax_types"] == 1
     assert result["active_nonzero_benchmark_rate_rows_diagnostic"] == 2
     assert metric.denominator == 1
-    assert session.query(CoverageException).filter_by(
-        exception_type="MISSING_PUBLIC_RATE",
-        status="open",
-    ).count() == 1
+    assert (
+        session.query(CoverageException)
+        .filter_by(
+            exception_type="MISSING_PUBLIC_RATE",
+            status="open",
+        )
+        .count()
+        == 1
+    )
 
 
 def test_state_aware_fact_map_matches_rate_without_covering_other_states(session):
@@ -357,10 +364,14 @@ def test_state_aware_fact_map_matches_rate_without_covering_other_states(session
     result = compare_coverage(session, as_of=date(2026, 7, 24))
 
     assert result["matched_benchmark_tax_types"] == 1
-    metric = session.query(CoverageMetric).filter_by(
-        comparison_run_id=result["run_id"],
-        scope="benchmark_total",
-        dimension="tax_type_public_law_support",
-    ).one()
+    metric = (
+        session.query(CoverageMetric)
+        .filter_by(
+            comparison_run_id=result["run_id"],
+            scope="benchmark_total",
+            dimension="tax_type_public_law_support",
+        )
+        .one()
+    )
     assert metric.numerator == 1
     assert metric.denominator == 1

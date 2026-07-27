@@ -26,8 +26,7 @@ COUNTY_URL = (
     "tab20_zcta520_county20_natl.txt"
 )
 PLACE_URL = (
-    "https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/"
-    "tab20_zcta520_place20_natl.txt"
+    "https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_place20_natl.txt"
 )
 ALLOCATION_QUANTUM = Decimal("0.000000001")
 

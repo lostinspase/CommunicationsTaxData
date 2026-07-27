@@ -23,21 +23,28 @@ def test_state_register_is_exactly_50_states():
 def test_catalog_seeds_both_authority_tracks(session):
     seed_catalog(session)
 
-    assert session.scalar(
-        select(func.count())
-        .select_from(Source)
-        .where(Source.source_type == "state_communications_regulator")
-    ) == 50
-    assert session.scalar(
-        select(func.count())
-        .select_from(Source)
-        .where(Source.source_type == "state_tax_landing")
-    ) == 50
-    assert session.scalar(
-        select(func.count())
-        .select_from(Source)
-        .where(Source.parser == "state-rules")
-    ) == 19
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(Source)
+            .where(Source.source_type == "state_communications_regulator")
+        )
+        == 50
+    )
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(Source)
+            .where(Source.source_type == "state_tax_landing")
+        )
+        == 50
+    )
+    assert (
+        session.scalar(
+            select(func.count()).select_from(Source).where(Source.parser == "state-rules")
+        )
+        == 19
+    )
 
 
 def test_state_page_does_not_count_catalog_as_rule_coverage(session):
@@ -53,9 +60,7 @@ def test_state_page_does_not_count_catalog_as_rule_coverage(session):
         "revenue_rules_started": 0,
         "sst_participants": 24,
     }
-    california = next(
-        item for item in data["states"] if item["state_code"] == "CA"
-    )
+    california = next(item for item in data["states"] if item["state_code"] == "CA")
     assert california["commission"]["health"]["status"] == "not_checked"
     assert california["commission"]["status"] == "not_pulled"
     assert california["revenue"]["status"] == "not_pulled"

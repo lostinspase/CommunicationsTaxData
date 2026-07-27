@@ -4,6 +4,7 @@ from decimal import Decimal
 from communications_tax_data.models import (
     AddressAssignment,
     BenchmarkRate,
+    CompanyNexusDetermination,
     CustomerTaxProfile,
     FilingEntity,
     Jurisdiction,
@@ -200,6 +201,23 @@ def _seed_service_determination(
             reviewed_at=datetime(2026, 7, 1),
         )
     )
+    session.add(
+        CompanyNexusDetermination(
+            state_code="NY",
+            tax_family="sales_and_use",
+            physical_presence_status="not_present",
+            economic_nexus_status="exceeded",
+            obligation_status="collection_required",
+            registration_status="registered",
+            collection_status="collecting",
+            determination_basis="Test reviewed nexus determination.",
+            evidence_reference="test",
+            review_status="reviewed",
+            reviewed_by="test-reviewer",
+            reviewed_at=datetime(2026, 7, 1),
+            effective_from=date(2026, 1, 1),
+        )
+    )
     entity = FilingEntity(
         entity_code="ny-test-filing",
         name="New York test filing entity",
@@ -244,6 +262,7 @@ def test_service_determination_calculates_only_after_all_gates_pass(session, tmp
     assert snapshot.product_mapping_ready is True
     assert snapshot.location_ready is True
     assert snapshot.taxability_ready is True
+    assert snapshot.nexus_ready is True
     assert snapshot.exemption_ready is True
     assert snapshot.filing_ready is True
     assert snapshot.calculation_ready is True
@@ -311,11 +330,27 @@ def test_service_determination_keeps_independent_review_gates(session):
     assert snapshot.product_mapping_ready is False
     assert snapshot.location_ready is False
     assert snapshot.taxability_ready is True
+    assert snapshot.nexus_ready is True
     assert snapshot.exemption_ready is False
     assert snapshot.calculation_ready is False
     assert "PRODUCT_MAPPING_UNREVIEWED" in snapshot.gap_codes
     assert "TAX_BOUNDARY_UNVERIFIED" in snapshot.gap_codes
     assert "EXEMPTION_EVIDENCE_UNVERIFIED" in snapshot.gap_codes
+
+
+def test_sales_use_route_requires_reviewed_nexus_and_registration(session):
+    _seed_service_determination(session)
+    session.query(CompanyNexusDetermination).delete()
+    session.flush()
+
+    assess_service_tax_demand(session, as_of=date(2026, 7, 26))
+    snapshot = session.query(ServiceTaxAssessment).one()
+
+    assert snapshot.taxability_ready is True
+    assert snapshot.nexus_ready is False
+    assert snapshot.filing_ready is True
+    assert snapshot.calculation_ready is False
+    assert "NEXUS_DETERMINATION_MISSING" in snapshot.gap_codes
 
 
 def test_taxonomy_seeding_preserves_human_review(session):

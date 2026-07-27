@@ -34,6 +34,9 @@ case "$MODE" in
     "$CTD" collect --collector monitor
     "$CTD" benchmark-sync
     "$CTD" sync-products
+    "$CTD" seed-nexus
+    "$CTD" sync-nexus-exposure
+    "$CTD" assess-nexus
     "$CTD" resolve-locations
     "$CTD" seed-filing-map
     "$CTD" build-location-profiles

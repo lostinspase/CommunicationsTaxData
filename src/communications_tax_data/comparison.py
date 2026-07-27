@@ -96,9 +96,7 @@ def _metric(
 ) -> CoverageMetric:
     percent = None
     if denominator:
-        percent = (Decimal(numerator) * 100 / Decimal(denominator)).quantize(
-            Decimal("0.0001")
-        )
+        percent = (Decimal(numerator) * 100 / Decimal(denominator)).quantize(Decimal("0.0001"))
     return CoverageMetric(
         comparison_run_id=run_id,
         as_of_date=as_of,
@@ -211,11 +209,7 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
                 if part
             )
         kind = next(
-            (
-                candidate
-                for item in type_rates
-                if (candidate := _keywords(item.tax_description))
-            ),
+            (candidate for item in type_rates if (candidate := _keywords(item.tax_description))),
             None,
         )
         candidates = list(federal_by_kind.get(kind, []) if federal_rates and kind else [])
@@ -228,18 +222,13 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
                         public_by_natural_key.get(mapping.public_fact_natural_key, [])
                     )
         candidates = list({fact.id: fact for fact in candidates}.values())
-        benchmark_values = sorted(
-            {item.rate for item in type_rates if item.rate is not None}
-        )
+        benchmark_values = sorted({item.rate for item in type_rates if item.rate is not None})
         rate_matches = [
             fact
             for fact in candidates
             if (
                 (fact.rate is not None and fact.rate in benchmark_values)
-                or (
-                    fact.flat_amount is not None
-                    and fact.flat_amount in benchmark_values
-                )
+                or (fact.flat_amount is not None and fact.flat_amount in benchmark_values)
             )
         ]
         if rate_matches:
@@ -261,11 +250,7 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
             CoverageException(
                 comparison_run_id=run.id,
                 exception_type=exception_type,
-                severity=(
-                    "high"
-                    if min(item.tax_level for item in type_rates) <= 1
-                    else "medium"
-                ),
+                severity=("high" if min(item.tax_level for item in type_rates) <= 1 else "medium"),
                 state_code=state,
                 jurisdiction_label=label,
                 benchmark_rate_id=benchmark.benchmark_id,
@@ -278,15 +263,9 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
                         {item.tax_category for item in type_rates if item.tax_category}
                     ),
                     "tax_descriptions": sorted(
-                        {
-                            item.tax_description
-                            for item in type_rates
-                            if item.tax_description
-                        }
+                        {item.tax_description for item in type_rates if item.tax_description}
                     ),
-                    "benchmark_nonzero_rates": [
-                        str(value) for value in benchmark_values
-                    ],
+                    "benchmark_nonzero_rates": [str(value) for value in benchmark_values],
                     "benchmark_rate_rows": len(type_rates),
                     "benchmark_pcodes": len({item.p_code for item in type_rates}),
                     "candidate_rates": [
@@ -435,10 +414,7 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
     candidate_tax_types = {
         tax_type
         for tax_type in all_tax_types
-        if any(
-            item.ctd_tax_concept
-            for item in crosswalks_by_type.get(tax_type, [])
-        )
+        if any(item.ctd_tax_concept for item in crosswalks_by_type.get(tax_type, []))
     }
     reviewed_tax_types = {
         tax_type
@@ -493,9 +469,7 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
             item.postal_code for item in scope_customers if item.postal_code is not None
         }
         scope_rates = [
-            benchmark
-            for p_code in pcodes
-            for benchmark in rates_by_pcode.get(p_code, [])
+            benchmark for p_code in pcodes for benchmark in rates_by_pcode.get(p_code, [])
         ]
         scope_tax_types = {item.tax_type for item in scope_rates}
         route_rate_results: dict[int, list[bool]] = {}
@@ -507,20 +481,15 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
                 else None
             )
             applicable_maps = [
-                mapping
-                for mapping in fact_maps
-                if _fact_map_applies(mapping, benchmark, state)
+                mapping for mapping in fact_maps if _fact_map_applies(mapping, benchmark, state)
             ]
             mapped_facts = [
                 fact
                 for mapping in applicable_maps
-                for fact in public_by_natural_key.get(
-                    mapping.public_fact_natural_key, []
-                )
+                for fact in public_by_natural_key.get(mapping.public_fact_natural_key, [])
             ]
             mapped_rate = any(
-                benchmark.rate in (fact.rate, fact.flat_amount)
-                for fact in mapped_facts
+                benchmark.rate in (fact.rate, fact.flat_amount) for fact in mapped_facts
             )
             if benchmark.tax_level == 0 and benchmark.tax_type in matched_tax_types:
                 mapped_rate = True
@@ -533,16 +502,12 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
                 )
             )
         scope_matched_tax_types = {
-            tax_type
-            for tax_type, results in route_rate_results.items()
-            if results and all(results)
+            tax_type for tax_type, results in route_rate_results.items() if results and all(results)
         }
         scope_candidate_tax_types = scope_tax_types & candidate_tax_types
         scope_reviewed_tax_types = scope_tax_types & reviewed_tax_types
         scope_public_law_tax_types = {
-            tax_type
-            for tax_type, results in route_law_results.items()
-            if results and all(results)
+            tax_type for tax_type, results in route_law_results.items() if results and all(results)
         }
         filing_results: dict[int, list[bool]] = {}
         for benchmark in scope_rates:
@@ -552,8 +517,7 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
                 else None
             )
             mapped = any(
-                _filing_map_applies(filing_map, benchmark, state)
-                for filing_map in filing_maps
+                _filing_map_applies(filing_map, benchmark, state) for filing_map in filing_maps
             )
             filing_results.setdefault(benchmark.tax_type, []).append(mapped)
             if not mapped and scope == "customer_active":
@@ -561,9 +525,7 @@ def compare_coverage(session: Session, *, as_of: date | None = None) -> dict:
                     (benchmark.tax_type, benchmark.tax_level, state), benchmark
                 )
         fully_mapped_filing_tax_types = {
-            tax_type
-            for tax_type, results in filing_results.items()
-            if results and all(results)
+            tax_type for tax_type, results in filing_results.items() if results and all(results)
         }
 
         add_metric(
@@ -770,9 +732,11 @@ def write_exception_report(session: Session, output_dir: Path) -> tuple[Path, Pa
             )
         )
     )
-    latest_metric_run = session.scalar(select(CoverageMetric.comparison_run_id).order_by(
-        CoverageMetric.comparison_run_id.desc()
-    ).limit(1))
+    latest_metric_run = session.scalar(
+        select(CoverageMetric.comparison_run_id)
+        .order_by(CoverageMetric.comparison_run_id.desc())
+        .limit(1)
+    )
     metric_rows = (
         list(
             session.scalars(

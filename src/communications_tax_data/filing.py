@@ -183,8 +183,7 @@ def seed_federal_filing_map(session: Session) -> dict[str, int]:
         payment_url="https://www.irs.gov/payments",
         registration_url=None,
         mailing_address=(
-            "Department of the Treasury, Internal Revenue Service, "
-            "Ogden, UT 84201-0009"
+            "Department of the Treasury, Internal Revenue Service, Ogden, UT 84201-0009"
         ),
         legal_citation="26 USC §§ 4251 and 4291; Form 720, IRS No. 22",
         **common,
@@ -428,9 +427,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
         suffix = str(p_code) if p_code is not None else "statewide"
         _, created = _fact_benchmark_map(
             session,
-            natural_key=(
-                f"{state.lower()}:avalara:{tax_type}:{tax_level}:{suffix}:{fact_key}"
-            ),
+            natural_key=(f"{state.lower()}:avalara:{tax_type}:{tax_level}:{suffix}:{fact_key}"),
             effective_from=date(1900, 1, 1),
             public_fact_natural_key=fact_key,
             benchmark_tax_type=tax_type,
@@ -513,10 +510,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
     legacy_mobile_map = session.scalar(
         select(TaxFactBenchmarkMap).where(
             TaxFactBenchmarkMap.natural_key
-            == (
-                "ny:avalara:14:1:statewide:"
-                "ny:dor:telecommunications-excise:mobile"
-            )
+            == ("ny:avalara:14:1:statewide:ny:dor:telecommunications-excise:mobile")
         )
     )
     if legacy_mobile_map is not None:
@@ -599,8 +593,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
         elif tax_type in (313, 315):
             city_key = f"ny:dor:sales-use-local:3:{locality_slug}"
             county_key = (
-                f"ny:dor:sales-use-local:"
-                f"{3 if county_slug == 'new-york-city' else 2}:{county_slug}"
+                f"ny:dor:sales-use-local:{3 if county_slug == 'new-york-city' else 2}:{county_slug}"
             )
             fact_key = city_key if city_key in fact_keys else county_key
             map_fact(
@@ -619,9 +612,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
             )
 
     for config in NY_LOCAL_UTILITY_RULES:
-        fact_key = (
-            f"ny:local:{_slug(config['locality'])}:utility-gross-receipts"
-        )
+        fact_key = f"ny:local:{_slug(config['locality'])}:utility-gross-receipts"
         enabling_citation = (
             "New York Village Law § 5-530"
             if config["municipality_type"] == "village"
@@ -766,9 +757,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
     ) -> None:
         _, created = _filing_map(
             session,
-            natural_key=(
-                f"{state.lower()}:avalara:{tax_type}:{tax_level}:{concept}:filing"
-            ),
+            natural_key=(f"{state.lower()}:avalara:{tax_type}:{tax_level}:{concept}:filing"),
             effective_from=date(1900, 1, 1),
             benchmark_tax_type=tax_type,
             tax_level=tax_level,
@@ -877,9 +866,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
 
     for config in NY_LOCAL_UTILITY_RULES:
         locality_slug = _slug(config["locality"])
-        jurisdiction_external_key = (
-            f"ny:utility-gross-receipts:3:{locality_slug}"
-        )
+        jurisdiction_external_key = f"ny:utility-gross-receipts:3:{locality_slug}"
         enabling_citation = (
             "New York Village Law § 5-530"
             if config["municipality_type"] == "village"
@@ -909,10 +896,7 @@ def seed_state_filing_and_benchmark_maps(session: Session) -> dict[str, int]:
         counts["entities_inserted"] += int(created)
         _, created = _filing_map(
             session,
-            natural_key=(
-                f"ny:avalara:14:3:{config['p_code']}:"
-                f"{locality_slug}:utility-grt:filing"
-            ),
+            natural_key=(f"ny:avalara:14:3:{config['p_code']}:{locality_slug}:utility-grt:filing"),
             effective_from=date.fromisoformat(config["effective_from"]),
             benchmark_tax_type=14,
             tax_level=3,
