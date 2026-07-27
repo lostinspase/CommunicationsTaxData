@@ -806,6 +806,24 @@ def _triggered(value: Decimal | None, threshold: Decimal | None, inclusive: bool
     return value >= threshold if inclusive else value > threshold
 
 
+def _combined_trigger(
+    operator: str,
+    amount_trigger: bool | None,
+    transaction_trigger: bool | None,
+) -> bool | None:
+    if operator == "and":
+        if amount_trigger is False or transaction_trigger is False:
+            return False
+        return True if amount_trigger is True and transaction_trigger is True else None
+    if operator == "or":
+        if amount_trigger is True or transaction_trigger is True:
+            return True
+        return False if amount_trigger is False and transaction_trigger is False else None
+    if operator == "transaction_only":
+        return transaction_trigger
+    return amount_trigger
+
+
 def assess_nexus(session: Session, *, as_of: date | None = None) -> dict[str, Any]:
     """Create a daily 50-state screen while preserving legal-review gaps."""
     assessment_date = as_of or date.today()
@@ -869,6 +887,15 @@ def assess_nexus(session: Session, *, as_of: date | None = None) -> dict[str, An
                     else exposure.invoice_count > rule.transaction_threshold
                 )
                 gaps.add("TRANSACTION_COUNT_IS_INVOICE_PROXY")
+            threshold_trigger = (
+                _combined_trigger(
+                    rule.threshold_operator,
+                    amount_trigger,
+                    transaction_trigger,
+                )
+                if rule
+                else None
+            )
             gate_status, gate_ready = nexus_gate_status(determination)
             if rule is None:
                 status = "rule_missing"
@@ -887,7 +914,7 @@ def assess_nexus(session: Session, *, as_of: date | None = None) -> dict[str, An
                 status = "physical_presence_review"
                 gaps.add("PHYSICAL_PRESENCE_EVIDENCE_REVIEW")
                 gaps.add("REGISTRATION_STATUS_NOT_VERIFIED")
-            elif amount_trigger is True or transaction_trigger is True:
+            elif threshold_trigger is True:
                 status = "economic_nexus_candidate"
                 gaps.add("ECONOMIC_NEXUS_LEGAL_REVIEW")
             elif exposure is None:
@@ -941,6 +968,7 @@ def assess_nexus(session: Session, *, as_of: date | None = None) -> dict[str, An
                         "gross": str(gross_amount) if gross_amount is not None else None,
                         "amount_trigger": amount_trigger,
                         "transaction_trigger": transaction_trigger,
+                        "combined_trigger": threshold_trigger,
                         "gaps": sorted(gaps),
                         "details": details,
                     },

@@ -31,6 +31,19 @@ def test_nexus_seed_and_assessment_cover_all_states(session):
                 limitations="Test screening proxy.",
             ),
             StateNexusExposure(
+                state_code="NY",
+                period_start=date(2025, 1, 1),
+                period_end=date(2025, 12, 31),
+                as_of_date=date(2026, 7, 27),
+                gross_billed_amount=Decimal("790524.52"),
+                tpp_candidate_amount=Decimal("36379.23"),
+                service_candidate_amount=Decimal("754145.29"),
+                unclassified_amount=Decimal("0"),
+                invoice_count=1000,
+                customer_count=20,
+                limitations="Test screening proxy.",
+            ),
+            StateNexusExposure(
                 state_code="CA",
                 period_start=date(2025, 1, 1),
                 period_end=date(2025, 12, 31),
@@ -67,6 +80,7 @@ def test_nexus_seed_and_assessment_cover_all_states(session):
     by_state = {row["state_code"]: row for row in data["states"]}
     assert by_state["UT"]["status"] == "economic_nexus_candidate"
     assert by_state["UT"]["threshold_percent"] == 827.36
+    assert by_state["NY"]["status"] == "monitor"
     assert by_state["CA"]["status"] == "physical_presence_review"
     assert by_state["CA"]["basis_amount"] == 12000.0
     assert by_state["CA"]["exemption_form_status"] == "available"
